@@ -12,9 +12,9 @@ export interface Person {
   middleName: string
   lastName: string
   maidenName?: string
-  dateOfBirth: string
+  dateOfBirth?: string
   dateOfDeath?: string
-  placeOfBirth: string
+  placeOfBirth?: string
 }
 
 export interface Family {

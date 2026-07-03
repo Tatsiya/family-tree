@@ -1,7 +1,14 @@
-import "./App.css";
+import { useTreeStore } from "./store/treeStore";
+import PersonCard from "./components/PersonCard";
 
-function App() {
-  return <div>My Family tree</div>;
+export default function App() {
+  const persons = useTreeStore((s) => s.tree.persons);
+
+  return (
+    <div>
+      {Object.keys(persons).map((id) => (
+        <PersonCard key={id} personId={id} />
+      ))}
+    </div>
+  );
 }
-
-export default App;

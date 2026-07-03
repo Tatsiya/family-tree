@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Person, Tree } from '../model/types'
+import { SEED_TREE } from '../model/seed'
 
 interface TreeState {
     tree: Tree
@@ -11,7 +12,7 @@ interface TreeState {
 }
 
 export const useTreeStore = create<TreeState>((set, get) => ({
-    tree: { rootPersonId: '', persons: {}, families: {} },
+    tree: SEED_TREE,
     selectedId: undefined,
 
     selectPerson(personId) {
