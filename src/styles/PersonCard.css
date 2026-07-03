@@ -1,0 +1,22 @@
+.personCard {
+    display: flex;
+    flex-direction: column;
+    padding: 20px 40px;
+    border-radius: 20px;
+    background-color: #f5f0e8;
+    width: fit-content;
+    color: #2c1810;
+    border: 1px solid #c4a882;
+    font-family: 'Playfair Display', serif;
+    font-size: 12px;
+}
+
+.personName, .personBirthDate, .personBirthPlace {
+    margin: 2.5px 0;
+    text-align: center;
+}
+
+.personName {
+    font-size: 14px;
+    font-weight: 600;
+}
