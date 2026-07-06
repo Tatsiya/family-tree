@@ -5,7 +5,7 @@ import { SEED_TREE } from '../model/seed'
 interface TreeState {
     tree: Tree
     selectedId?: string
-    selectPerson: (personId: string) => void
+    togglePerson: (personId: string) => void
     addPerson: (draft: Omit<Person, 'id'>) => void
     deletePerson: (personId: string) => void
     updatePeson: (person: Person) => void
@@ -15,10 +15,11 @@ export const useTreeStore = create<TreeState>((set, get) => ({
     tree: SEED_TREE,
     selectedId: undefined,
 
-    selectPerson(personId) {
-        set({ selectedId: personId })
+    togglePerson(personId) {
+        const { selectedId } = get()
+        set({ selectedId: selectedId === personId ? undefined : personId })
     },
-
+    
     addPerson(draft) {
         const tree = structuredClone(get().tree)
         const id = crypto.randomUUID()
