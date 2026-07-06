@@ -9,6 +9,8 @@
     border: 1px solid #c4a882;
     font-family: 'Playfair Display', serif;
     font-size: 12px;
+    height: fit-content;
+    cursor: pointer;
 }
 
 .personName, .personBirthDate, .personBirthPlace {

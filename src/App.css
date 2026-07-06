@@ -1,0 +1,6 @@
+.appContainer {
+  display: flex;
+  justify-content: space-between;
+  height: 100vh;
+  background-color: #e8e0d0;
+};
