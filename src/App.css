@@ -1,6 +1,12 @@
+.appRoot {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .appContainer {
   display: flex;
   justify-content: space-between;
-  height: 100vh;
+  flex: 1;
   background-color: #e8e0d0;
-};
+}
