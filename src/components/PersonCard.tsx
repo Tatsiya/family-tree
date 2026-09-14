@@ -1,5 +1,5 @@
 import { useTreeStore } from "../store/treeStore";
-import "../styles/PersonCard.css";
+import PersonFields from "./PersonFields";
 
 interface Props {
   personId: string;
@@ -11,17 +11,11 @@ function PersonCard({ personId }: Props) {
   if (!person) return null;
 
   return (
-    <div className="personCard" onClick={() => togglePerson(personId)}>
-      <p className="personName">
-        {person.name +
-          " " +
-          (person.middleName ? person.middleName + " " : "") +
-          person.lastName}
-      </p>
-      {person.dateOfBirth && (
-        <p className="personBirthDate">{person.dateOfBirth?.slice(0, 4)}</p>
-      )}
-      <p className="personBirthPlace">{person.placeOfBirth}</p>
+    <div
+      className="flex h-fit w-fit cursor-pointer flex-col rounded-[20px] border border-parchment-border bg-parchment-card px-10 py-5 font-serif text-parchment-text"
+      onClick={() => togglePerson(personId)}
+    >
+      <PersonFields person={person} yearOnly />
     </div>
   );
 }

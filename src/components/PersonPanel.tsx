@@ -1,6 +1,6 @@
 import { useTreeStore } from "../store/treeStore";
-import "../styles/PersonPanel.css";
 import { X } from "lucide-react";
+import PersonFields from "./PersonFields";
 
 function PersonPanel() {
   const person = useTreeStore((s) =>
@@ -10,22 +10,13 @@ function PersonPanel() {
 
   if (!person) return null;
   return (
-    <div className="personPanel">
+    <div className="relative flex w-1/5 flex-col items-start bg-parchment-panel px-5 py-10 font-serif text-parchment-text shadow-[-4px_0_16px_rgba(0,0,0,0.1)]">
       <X
         size={20}
-        className="closeButton"
+        className="absolute top-4 right-4 cursor-pointer"
         onClick={() => togglePerson(person.id)}
       />
-      <p className="personName">
-        {person.name +
-          " " +
-          (person.middleName ? person.middleName + " " : "") +
-          person.lastName}
-      </p>
-      {person.dateOfBirth && (
-        <p className="personBirthDate">{person.dateOfBirth}</p>
-      )}
-      <p className="personBirthPlace">{person.placeOfBirth}</p>
+      <PersonFields person={person} />
     </div>
   );
 }

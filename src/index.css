@@ -1,3 +1,12 @@
-body {
-  margin: 0;
+@import "tailwindcss";
+
+@theme {
+  --font-serif: 'Playfair Display', serif;
+
+  --color-parchment-bg: #e8e0d0;
+  --color-parchment-card: #f5f0e8;
+  --color-parchment-panel: #faf8f5;
+  --color-parchment-border: #c4a882;
+  --color-parchment-text: #2c1810;
+  --color-parchment-text-strong: #442617;
 }
