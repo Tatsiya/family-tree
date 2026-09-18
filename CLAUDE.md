@@ -11,6 +11,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 There is no test suite configured in this repo (no test script, no test framework installed).
 
+## Project Overview
+This is a React app for building a family tree and printing/exporting it.
+Primary users are non-technical — they need clarity, not complexity.
+The product optimizes for:
+- Time-to-insight: family trees should load fast and be scannable at a glance
+- Simplicity: one obvious way to do each task, no power-user shortcuts
+- Visual polish: consistent spacing, alignment, and typography across both web and print — no sloppy or uneven layouts, everything should feel clean and intentional
+
+Avoid over-engineering. Prefer readability over cleverness. When in doubt, make it simpler.
+
+## Tech Stack
+
+- Next.js 15 with App Router (not Pages Router)
+- TypeScript (strict mode enabled)
+- Tailwind CSS for styling
+- Zustand for global state (only where truly needed)
+- Vitest + React Testing Library for tests
+- d3-flextree for tree layout calculation (pure math only — positions/sizes, no DOM manipulation)
+- d3-shape for connector line paths (d3.linkVertical, curveBumpY, etc.)
+- read-gedcom for GEDCOM file parsing (TypeScript, zero-dependency)
+- react-leaflet for the location map view (separate from the tree renderer)
+
+Do NOT introduce:
+- Redux or any other global state library
+- styled-components, Emotion, or CSS Modules
+- Material UI, Ant Design, or Chakra UI
+- Axios (use native fetch with our wrapper in lib/api.ts)
+- React Flow, GoJS, family-chart, or any other diagramming/tree framework — the tree renderer is custom SVG
+- dagre / dagre-d3 (unmaintained — use ELK.js if a layered layout beyond d3-hierarchy is ever needed)
+- Canvas or WebGL for the tree — must stay SVG for print export
+- html-to-image / html2canvas as the export path — use XMLSerializer on the SVG instead
+
+...unless explicitly requested.
+
 ## Architecture
 
 This is a small, early-stage React + TypeScript + Vite app for building a family tree, styled with Tailwind CSS v4.
