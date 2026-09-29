@@ -1,8 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { computeTreeLayout } from "../../model/treeLayout";
+import { NODE_HEIGHT } from "../../model/treeLayoutConstants";
 import type { Tree } from "../../model/types";
+import { useZoomPan } from "../../hooks/useZoomPan";
 import { ConnectorLine } from "./ConnectorLine";
 import { PersonNode } from "./PersonNode";
+import { ZoomControls } from "./ZoomControls";
 
 export interface TreeCanvasProps {
   tree: Tree;
@@ -10,6 +13,14 @@ export interface TreeCanvasProps {
 
 export function TreeCanvas({ tree }: TreeCanvasProps) {
   const layout = useMemo(() => computeTreeLayout(tree), [tree]);
+  const { scrollRef, scale, zoomIn, zoomOut, canZoomIn, canZoomOut, centerOn, isPanning } = useZoomPan();
+
+  useEffect(() => {
+    const root = layout.persons.find((p) => p.personId === tree.rootPersonId);
+    if (root) centerOn(root.x, root.y + NODE_HEIGHT / 2);
+    // Re-center only when the tree is re-rooted, not on every edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree.rootPersonId]);
 
   if (layout.persons.length === 0) {
     return (
@@ -21,20 +32,37 @@ export function TreeCanvas({ tree }: TreeCanvasProps) {
   }
 
   return (
-    <div className="flex-1 overflow-auto p-6">
-      <svg width={layout.width} height={layout.height}>
-        {layout.edges.map((edge) => (
-          <ConnectorLine key={edge.id} path={edge.path} secondary={edge.secondary} kind={edge.kind} />
-        ))}
-        {layout.persons.map((person) => (
-          <PersonNode
-            key={person.personId}
-            personId={person.personId}
-            x={person.x}
-            y={person.y}
-          />
-        ))}
-      </svg>
+    <div className="relative flex-1 overflow-hidden">
+      <div
+        ref={scrollRef}
+        className={`h-full overflow-auto p-6 ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+      >
+        <svg
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          width={layout.width * scale}
+          height={layout.height * scale}
+        >
+          {layout.edges.map((edge) => (
+            <ConnectorLine key={edge.id} path={edge.path} secondary={edge.secondary} kind={edge.kind} />
+          ))}
+          {layout.persons.map((person) => (
+            <PersonNode
+              key={person.personId}
+              personId={person.personId}
+              x={person.x}
+              y={person.y}
+            />
+          ))}
+        </svg>
+      </div>
+      <ZoomControls
+        scale={scale}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        canZoomIn={canZoomIn}
+        canZoomOut={canZoomOut}
+        className="absolute bottom-6 right-6"
+      />
     </div>
   );
 }
