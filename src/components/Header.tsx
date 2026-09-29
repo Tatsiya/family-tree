@@ -1,17 +1,27 @@
 import { useRef, useState } from "react";
+import type { RefObject } from "react";
 import { Download, Upload, UserPlus } from "lucide-react";
 import AddPersonForm from "./AddPersonForm";
+import { ExportDialog } from "./ExportDialog";
 import { GedcomImportInput } from "./import/GedcomImportInput";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { useGedcomImport } from "../hooks/useGedcomImport";
+import { useTreeStore } from "../store/treeStore";
+
+export interface HeaderProps {
+  svgRef: RefObject<SVGSVGElement | null>;
+}
 
 const toolbarButton =
   "flex items-center gap-2 rounded-full border border-parchment-border bg-parchment-card px-4 py-2 font-serif text-xs text-parchment-text transition-colors hover:bg-parchment-bg disabled:cursor-not-allowed disabled:opacity-50";
 
-function Header() {
+function Header({ svgRef }: HeaderProps) {
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
   const addRef = useRef<HTMLDivElement>(null);
   useClickOutside(addRef, () => setIsAddPersonOpen(false), isAddPersonOpen);
+
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const hasTree = useTreeStore((s) => Object.keys(s.tree.persons).length > 0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { importFile, status, error } = useGedcomImport();
@@ -19,9 +29,6 @@ function Header() {
   function handleImport() {
     fileInputRef.current?.click();
   }
-
-  // Export isn't implemented yet - placeholder for a future feature.
-  function handleExport() {}
 
   return (
     <header className="flex items-center justify-between border-b border-parchment-border bg-parchment-panel px-10 py-5">
@@ -56,10 +63,19 @@ function Header() {
             onFileSelected={importFile}
           />
         </div>
-        <button className={toolbarButton} onClick={handleExport}>
-          <Download size={16} />
-          Export
-        </button>
+        <div className="relative">
+          <button
+            className={toolbarButton}
+            onClick={() => setIsExportOpen(true)}
+            disabled={!hasTree}
+          >
+            <Download size={16} />
+            Export
+          </button>
+          {isExportOpen && (
+            <ExportDialog svgRef={svgRef} onClose={() => setIsExportOpen(false)} />
+          )}
+        </div>
       </div>
     </header>
   );
