@@ -2,6 +2,7 @@ import { flextree } from "d3-flextree";
 import type { FlextreeNode } from "d3-flextree";
 import type { Family, Tree } from "./types";
 import { connectorPath } from "./connectorPath";
+import type { EdgeSource } from "./connectorPath";
 import { buildAncestorGroup, fullRow, rowWidth } from "./ancestorGroup";
 import type { AncestorGroupNode } from "./ancestorGroup";
 import { NODE_WIDTH, NODE_HEIGHT, SIBLING_GAP, GROUP_GAP, GENERATION_GAP } from "./treeLayoutConstants";
@@ -18,6 +19,10 @@ export interface PositionedEdge {
   // A second (or later) marriage, shown as a supplementary branch rather
   // than part of the primary ancestry line -- rendered dashed.
   secondary?: boolean;
+  // A marriage bridge (couple or second marriage) vs. a parent/child
+  // descent line -- rendered heavier, so a couple reads as a pair rather
+  // than as two more entries in the surrounding sibling row.
+  kind: "connector" | "bridge";
 }
 
 export interface TreeLayout {
@@ -29,9 +34,15 @@ export interface TreeLayout {
 
 interface RawEdge {
   id: string;
-  sources: { x: number; y: number }[];
+  sources: EdgeSource[];
   target: { x: number; y: number };
-  secondary?: boolean;
+  // Where this edge's bus sits along the gap to its target (see
+  // connectorPath). Distinguishes a couple's two chunks -- each connects to
+  // its own separate parentGroup, and those can span overlapping x ranges
+  // when one parent's ancestry is much wider than the other's; without a
+  // distinct busT the two would draw as one shared line to both sets of
+  // grandparents instead of two crossing ones.
+  busT: number;
 }
 
 interface RawBridge {
@@ -42,20 +53,12 @@ interface RawBridge {
   secondary?: boolean;
 }
 
-interface PendingChildPlacement {
-  spouseId: string;
-  spouseX: number;
-  spouseY: number;
-  childIds: string[];
-}
-
 // Accumulated pre-flip, pre-translation output of the layout pipeline:
 // raw flextree-space coordinates plus the running bounding box.
 interface RawLayout {
   persons: PositionedPerson[];
   edges: RawEdge[];
   bridges: RawBridge[];
-  pendingChildPlacements: PendingChildPlacement[];
   minX: number;
   maxX: number;
   minY: number;
@@ -66,16 +69,15 @@ const EMPTY_LAYOUT: TreeLayout = { persons: [], edges: [], width: 0, height: 0 }
 
 // Renders as a pedigree chart: the tree's anchor person sits at the bottom,
 // with their parents, grandparents, etc. fanning upward above them, and each
-// ancestor's own siblings shown alongside them. A couple always shares one
-// flextree node so they stay next to each other no matter how much deeper
-// one side's known ancestry runs than the other's.
+// ancestor's own siblings (plus half-siblings from a parent's other
+// marriage) shown alongside them. A couple always shares one flextree node
+// so they stay next to each other no matter how much deeper one side's
+// known ancestry runs than the other's.
 export function computeTreeLayout(tree: Tree): TreeLayout {
   if (!tree.persons[tree.rootPersonId]) return EMPTY_LAYOUT;
 
   const positionedRoot = layoutAncestorGroups(tree);
-  const raw = collectPrimaryPositions(positionedRoot);
-  placeSecondMarriageChildren(raw);
-  return flipAndTranslate(raw);
+  return flipAndTranslate(collectPositions(positionedRoot));
 }
 
 // Builds the ancestor-group hierarchy (see ancestorGroup.ts) and runs it
@@ -110,15 +112,23 @@ function layoutAncestorGroups(tree: Tree): FlextreeNode<AncestorGroupNode> {
   return layout(layout.hierarchy(anchorGroup));
 }
 
-// Walks each positioned row to compute every member's final x (row order
-// was decided by buildAncestorGroup; flextree only positioned the row as a
-// whole), and collects parent/child edges and couple bridges along the way.
-function collectPrimaryPositions(positionedRoot: FlextreeNode<AncestorGroupNode>): RawLayout {
+// Every row member's final x, keyed by personId. Row order was decided by
+// buildAncestorGroup (siblings, half-siblings, the traced person, any extra
+// spouse); flextree only positioned the row as a whole, centered at
+// node.x -- this steps through it at a uniform card width.
+function rowPositions(node: FlextreeNode<AncestorGroupNode>): Map<string, number> {
+  const row = fullRow(node.data);
+  const startX = node.x - rowWidth(row) / 2;
+  return new Map(row.map((personId, index) => [personId, startX + index * (NODE_WIDTH + SIBLING_GAP) + NODE_WIDTH / 2]));
+}
+
+// Walks each positioned row to compute every member's final x, and collects
+// parent/child edges and couple bridges along the way.
+function collectPositions(positionedRoot: FlextreeNode<AncestorGroupNode>): RawLayout {
   const raw: RawLayout = {
     persons: [],
     edges: [],
     bridges: [],
-    pendingChildPlacements: [],
     minX: Infinity,
     maxX: -Infinity,
     minY: 0,
@@ -126,9 +136,7 @@ function collectPrimaryPositions(positionedRoot: FlextreeNode<AncestorGroupNode>
   };
 
   positionedRoot.each((node) => {
-    const row = fullRow(node.data);
-    const startX = node.x - rowWidth(row) / 2;
-    const positionOf = new Map(row.map((personId, index) => [personId, startX + index * (NODE_WIDTH + SIBLING_GAP) + NODE_WIDTH / 2]));
+    const positionOf = rowPositions(node);
 
     for (const [personId, x] of positionOf) {
       raw.persons.push({ personId, x, y: node.y });
@@ -152,9 +160,12 @@ function collectPrimaryPositions(positionedRoot: FlextreeNode<AncestorGroupNode>
     // node.children here are this chunk's own parents (one flextree node per
     // chunk that has known parents), since "children" walks upward toward
     // older generations. Every member of a chunk connects to their shared
-    // parents, not just whoever continues the traced line.
+    // parents, not just whoever continues the traced line -- half-siblings
+    // are marked per-source (see connectorPath) so their stretch of the
+    // shared bus renders dashed without needing a second, separately
+    // positioned edge.
     let childIndex = 0;
-    for (const chunk of node.data.chunks) {
+    for (const [chunkIndex, chunk] of node.data.chunks.entries()) {
       if (chunk.parentGroup) {
         const parentNode = (node.children ?? [])[childIndex] as FlextreeNode<AncestorGroupNode>;
         childIndex += 1;
@@ -166,17 +177,22 @@ function collectPrimaryPositions(positionedRoot: FlextreeNode<AncestorGroupNode>
 
         raw.edges.push({
           id: `${chunk.row.join(",")}>${parentKey}`,
-          sources: chunk.row.map((personId) => ({ x: positionOf.get(personId) as number, y: node.y })),
+          sources: chunk.row.map((personId) => ({
+            x: positionOf.get(personId) as number,
+            y: node.y,
+            secondary: chunk.halfSiblingIds.includes(personId),
+          })),
           target: { x: parentX, y: parentY },
+          busT: chunkIndex === 0 ? 0.5 : 0.7,
         });
       }
 
       // Second marriages: the other spouse already got a place in `row`
       // (right next to chunk.tracedId), so the existing flextree pass
-      // reserves their space and nothing else can ever land on top of them.
-      // A dashed bridge marks the marriage; their children are queued for
-      // placement below once every row's position is final (see
-      // placeSecondMarriageChildren).
+      // reserves their space and nothing else can ever land on top of
+      // them. A dashed bridge marks the marriage; their children render as
+      // half-siblings in whoever's row has this chunk's parentGroup (see
+      // ancestorGroup.ts), not here.
       const tracedX = positionOf.get(chunk.tracedId) as number;
       for (const marriage of chunk.extraMarriages) {
         const spouseX = positionOf.get(marriage.spouseId) as number;
@@ -187,66 +203,11 @@ function collectPrimaryPositions(positionedRoot: FlextreeNode<AncestorGroupNode>
           y: node.y,
           secondary: true,
         });
-
-        if (marriage.childIds.length > 0) {
-          raw.pendingChildPlacements.push({
-            spouseId: marriage.spouseId,
-            spouseX,
-            spouseY: node.y,
-            childIds: marriage.childIds,
-          });
-        }
       }
     }
   });
 
   return raw;
-}
-
-// Now that every row -- including each second marriage's spouse -- has a
-// final position, place that marriage's children one generation below,
-// exactly like any other parent/child pair. Try directly under the spouse
-// first; if another box already occupies that generation there (unrelated
-// primary content flextree had no reason to avoid, since it never knew
-// about these extra children), step sideways until clear. Mutates `raw`.
-function placeSecondMarriageChildren(raw: RawLayout): void {
-  const rowStep = NODE_WIDTH + SIBLING_GAP;
-  for (const placement of raw.pendingChildPlacements) {
-    const { spouseId, spouseX, spouseY, childIds } = placement;
-    const childCount = childIds.length;
-    const generationY = spouseY - (GENERATION_GAP + NODE_HEIGHT);
-    const occupiedXs = raw.persons.filter((p) => Math.abs(p.y - generationY) < 1).map((p) => p.x);
-
-    const fits = (centerX: number) =>
-      childIds.every((_, i) => {
-        const x = centerX + (i - (childCount - 1) / 2) * rowStep;
-        return occupiedXs.every((otherX) => Math.abs(otherX - x) >= rowStep);
-      });
-
-    let groupCenterX = spouseX;
-    for (let attempt = 1; !fits(groupCenterX) && attempt < 500; attempt++) {
-      const magnitude = Math.ceil(attempt / 2) * rowStep;
-      groupCenterX = spouseX + (attempt % 2 === 1 ? magnitude : -magnitude);
-    }
-
-    const childPositions = childIds.map((childId, i) => ({
-      personId: childId,
-      x: groupCenterX + (i - (childCount - 1) / 2) * rowStep,
-      y: generationY,
-    }));
-    for (const p of childPositions) {
-      raw.persons.push(p);
-      raw.minX = Math.min(raw.minX, p.x - NODE_WIDTH / 2);
-      raw.maxX = Math.max(raw.maxX, p.x + NODE_WIDTH / 2);
-      raw.minY = Math.min(raw.minY, p.y);
-    }
-    raw.edges.push({
-      id: `${spouseId}-secondary-children`,
-      secondary: true,
-      sources: childPositions.map((p) => ({ x: p.x, y: generationY })),
-      target: { x: spouseX, y: spouseY },
-    });
-  }
 }
 
 // Flips the vertical axis: flextree depth grows from the anchor (depth 0)
@@ -259,18 +220,25 @@ function flipAndTranslate(raw: RawLayout): TreeLayout {
 
   // The target lands at the parent row's vertical center -- the same height
   // as the marriage bridge below -- so the two visibly meet at one point
-  // instead of the connector stopping short at the box's top edge.
-  const connectorEdges: PositionedEdge[] = raw.edges.map((e) => ({
-    id: e.id,
-    secondary: e.secondary,
-    path: connectorPath(
-      e.sources.map((s) => ({ x: s.x + shiftX, y: flipY(s.y) + NODE_HEIGHT })),
+  // instead of the connector stopping short at the box's top edge. Each
+  // edge yields up to two PositionedEdges (solid and dashed halves of one
+  // bus, see connectorPath) sharing the same id prefix.
+  const connectorEdges: PositionedEdge[] = raw.edges.flatMap((e) => {
+    const { solid, dashed } = connectorPath(
+      e.sources.map((s) => ({ x: s.x + shiftX, y: flipY(s.y) + NODE_HEIGHT, secondary: s.secondary })),
       { x: e.target.x + shiftX, y: flipY(e.target.y) + NODE_HEIGHT / 2 },
-    ),
-  }));
+      e.busT,
+    );
+    // solid is never empty here: every chunk's row includes the traced
+    // person themself, who by construction is never in halfSiblingIds, so
+    // every edge always has at least one non-secondary source.
+    const parts: PositionedEdge[] = [{ id: `${e.id}-solid`, kind: "connector", path: solid }];
+    if (dashed) parts.push({ id: `${e.id}-dashed`, kind: "connector", secondary: true, path: dashed });
+    return parts;
+  });
   const bridgeEdges: PositionedEdge[] = raw.bridges.map((b) => {
     const y = flipY(b.y) + NODE_HEIGHT / 2;
-    return { id: b.id, secondary: b.secondary, path: `M${b.x1 + shiftX},${y}L${b.x2 + shiftX},${y}` };
+    return { id: b.id, secondary: b.secondary, kind: "bridge", path: `M${b.x1 + shiftX},${y}L${b.x2 + shiftX},${y}` };
   });
 
   return {
@@ -283,8 +251,5 @@ function flipAndTranslate(raw: RawLayout): TreeLayout {
 
 // The x-position of a specific person within a node's combined row.
 function tracedPersonPosition(node: FlextreeNode<AncestorGroupNode>, personId: string): number {
-  const row = fullRow(node.data);
-  const startX = node.x - rowWidth(row) / 2;
-  const index = row.indexOf(personId);
-  return startX + index * (NODE_WIDTH + SIBLING_GAP) + NODE_WIDTH / 2;
+  return rowPositions(node).get(personId) as number;
 }

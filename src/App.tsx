@@ -7,9 +7,9 @@ export default function App() {
   const tree = useTreeStore((s) => s.tree);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col">
       <Header />
-      <div className="flex flex-1 justify-between bg-parchment-bg">
+      <div className="flex min-h-0 flex-1 justify-between bg-parchment-bg">
         <TreeCanvas tree={tree} />
         <PersonPanel />
       </div>

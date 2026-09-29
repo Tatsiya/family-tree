@@ -6,16 +6,22 @@ export interface ExtraMarriage {
   childIds: string[];
 }
 
-// A row is a family's full sibling group (birth order), plus any other
-// marriages the traced person had -- that spouse sits right next to them in
-// the same row, so the existing flextree pass positions them and nothing
-// else can ever collide with them. `tracedId` marks the one member whose
-// own ancestry continues via `parentGroup`. One AncestorGroupNode holds 1
-// chunk (the anchor, with no partner) or 2 (a couple) -- keeping both
-// partners in the same flextree node is what keeps them adjacent regardless
-// of how different their own ancestries are.
+// A row is a family's full sibling group (birth order), any half-siblings
+// from a parent's other marriage (see halfSiblingIds), plus any other
+// marriages the traced person themself had -- that spouse sits right next
+// to them in the same row, so the existing flextree pass reserves their
+// slot and nothing else can ever collide with them. `tracedId` marks the
+// one member whose own ancestry continues via `parentGroup`. One
+// AncestorGroupNode holds 1 chunk (the anchor, with no partner) or 2 (a
+// couple) -- keeping both partners in the same flextree node is what keeps
+// them adjacent regardless of how different their own ancestries are.
 export interface RowChunk {
   row: string[];
+  // Subset of `row` that are half-siblings rather than full siblings or the
+  // traced person -- kept separate only so the connector up to parentGroup
+  // can be drawn dashed for this group, same as any other second-marriage
+  // relationship.
+  halfSiblingIds: string[];
   tracedId: string;
   parentGroup: AncestorGroupNode | null;
   extraMarriages: ExtraMarriage[];
@@ -33,8 +39,18 @@ export function rowWidth(row: string[]): number {
   return row.length * NODE_WIDTH + (row.length - 1) * SIBLING_GAP;
 }
 
+// A person can have more than one family-as-child link in GEDCOM -- e.g. a
+// blood family plus a foster/step family they later moved to. The blood
+// family is what should drive the ancestry chart, so it's preferred over
+// whichever family record happens to appear first in the source file.
 function familyOfChild(tree: Tree, personId: string): Family | undefined {
-  return Object.values(tree.families ?? {}).find((f) => (f.children ?? []).some((c) => c.id === personId));
+  const families = Object.values(tree.families ?? {}).filter((f) =>
+    (f.children ?? []).some((c) => c.id === personId),
+  );
+  if (families.length <= 1) return families[0];
+  return (
+    families.find((f) => f.children?.find((c) => c.id === personId)?.relationType === "blood") ?? families[0]
+  );
 }
 
 // Some imported records have no name at all (privacy-redacted living people
@@ -46,10 +62,11 @@ export function hasName(person: Person): boolean {
 }
 
 // Builds one row chunk per traced person: their full sibling group (birth
-// order) from their own parent family, any other marriages they had (each
-// one's spouse placed right in the row beside them), and that person's own
-// parents as a combined chunk continuing upward. personIds is [anchor] at
-// the very bottom, or a couple (up to 2) at every level above.
+// order) from their own parent family, any half-siblings from a parent's
+// other marriage, any other marriages they themself had (each one's spouse
+// placed right in the row beside them), and that person's own parents as a
+// combined chunk continuing upward. personIds is [anchor] at the very
+// bottom, or a couple (up to 2) at every level above.
 //
 // primaryFamilyId is the family that produced this exact chunk -- null only
 // for the anchor's own chunk, since it isn't produced by any shown marriage
@@ -100,23 +117,11 @@ export function buildAncestorGroup(
     }
     // Each extra marriage's spouse sits right in the row -- so the existing
     // flextree pass reserves space for them and nothing can ever land on
-    // top of them. Their children still render one generation below, like
-    // any other parent/child pair; placeSecondMarriageChildren (in
-    // treeLayout.ts) places those in a second pass, once every row
-    // (including this spouse) has a position, so it can check for and
-    // avoid any collision.
+    // top of them. Their children are that spouse's OTHER parent's
+    // children too, i.e. half-siblings of whoever's row they show up in --
+    // see the parentGroup/halfSiblingIds handling below, one level down
+    // from here, which is where they actually get placed.
     const extraSpouseIds = extraMarriages.map((m) => m.spouseId);
-
-    // Keep a couple adjacent in the middle: the first partner's own extras
-    // and siblings lead into them, the second partner's trail after them.
-    let row: string[];
-    if (!isCouple) {
-      row = [...siblingIds, personId, ...extraSpouseIds];
-    } else if (index === 0) {
-      row = [...extraSpouseIds, ...siblingIds, personId];
-    } else {
-      row = [personId, ...siblingIds, ...extraSpouseIds];
-    }
 
     let parentGroup: AncestorGroupNode | null = null;
     if (family) {
@@ -137,7 +142,29 @@ export function buildAncestorGroup(
       }
     }
 
-    return { row, tracedId: personId, parentGroup, extraMarriages };
+    // Half-siblings: children from any OTHER marriage either parent had.
+    // parentGroup (just built above) already worked out each parent's own
+    // extra marriages -- reading childIds back out here, one level down
+    // from where they were found, is what places them in personId's own
+    // row instead of trying to position them relative to a spouse who may
+    // be laid out anywhere once the rest of the tree is positioned.
+    const halfSiblingIds = parentGroup
+      ? parentGroup.chunks.flatMap((c) => c.extraMarriages.flatMap((m) => m.childIds))
+      : [];
+
+    // Keep a couple adjacent in the middle: the first partner's own extras,
+    // siblings and half-siblings lead into them, the second partner's trail
+    // after them.
+    let row: string[];
+    if (!isCouple) {
+      row = [...siblingIds, ...halfSiblingIds, personId, ...extraSpouseIds];
+    } else if (index === 0) {
+      row = [...extraSpouseIds, ...siblingIds, ...halfSiblingIds, personId];
+    } else {
+      row = [personId, ...siblingIds, ...halfSiblingIds, ...extraSpouseIds];
+    }
+
+    return { row, halfSiblingIds, tracedId: personId, parentGroup, extraMarriages };
   });
 
   return { chunks };
