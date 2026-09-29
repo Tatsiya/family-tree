@@ -1,75 +1,55 @@
-# React + TypeScript + Vite
+# My Family Tree
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser app for building a family tree. Add people by hand or import an existing tree from a GEDCOM file, then explore it as an interactive diagram.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Add a person** — a form for name, date and place of birth, and sex.
+- **Import from GEDCOM** — upload a `.ged` file to load an existing tree.
+- **Interactive tree view** — the tree renders as an SVG diagram; click a person to see their details in a side panel.
 
-## React Compiler
+Not yet implemented:
+- Exporting or printing the tree
+- Editing or deleting a person from the UI
+- A map/location view
+- Persistence — the tree currently lives in memory only and is lost on page reload
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Getting started
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Available scripts
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Script | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite dev server |
+| `npm run build` | Type-check (`tsc -b`) and build for production (`vite build`) |
+| `npm run lint` | Run ESLint |
+| `npm run preview` | Preview the production build locally |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Tech stack
+
+- [Vite](https://vite.dev/) + [React 19](https://react.dev/)
+- TypeScript (strict mode)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Zustand](https://zustand.docs.pmnd.rs/) for state
+- [d3-flextree](https://github.com/klortho/d3-flextree) for tree layout
+- [read-gedcom](https://github.com/pchretien/read-gedcom) for GEDCOM parsing
+
+## Project structure
 
 ```
+src/
+  components/         reusable, generic UI (buttons, forms, panels)
+  components/tree/    SVG tree rendering (PersonNode, ConnectorLine, TreeCanvas)
+  components/import/  GEDCOM upload UI
+  hooks/               custom hooks
+  model/               pure functions and types: tree layout, GEDCOM parsing/normalization
+  model/gedcom/        GEDCOM-to-tree conversion
+  store/               Zustand store — the only place that will touch localStorage
+```
+
+See `AGENTS.md` for detailed conventions if you're contributing or working on this repo with an AI coding assistant.
