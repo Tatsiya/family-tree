@@ -9,7 +9,7 @@ interface Props {
 
 type FormState = Pick<
   Person,
-  "name" | "middleName" | "lastName" | "dateOfBirth" | "placeOfBirth"
+  "name" | "middleName" | "lastName" | "dateOfBirth" | "placeOfBirth" | "sex"
 >;
 
 const INITIAL_FORM: FormState = {
@@ -18,7 +18,13 @@ const INITIAL_FORM: FormState = {
   lastName: "",
   dateOfBirth: "",
   placeOfBirth: "",
+  sex: undefined,
 };
+
+const SEX_OPTIONS: { value: "M" | "F"; label: string }[] = [
+  { value: "M", label: "Male" },
+  { value: "F", label: "Female" },
+];
 
 const FIELDS: {
   key: keyof FormState;
@@ -71,6 +77,24 @@ function AddPersonForm({ onClose }: Props) {
           autoFocus={index === 0}
         />
       ))}
+      <div className="flex gap-2">
+        {SEX_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() =>
+              updateField("sex", form.sex === option.value ? undefined : option.value)
+            }
+            className={`flex-1 rounded-lg border px-2.5 py-2 font-serif text-xs transition-colors focus:outline-2 focus:outline-offset-1 focus:outline-parchment-border ${
+              form.sex === option.value
+                ? "border-parchment-text bg-parchment-text text-parchment-card"
+                : "border-parchment-border bg-parchment-panel text-parchment-text hover:bg-parchment-bg"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
       <button
         type="submit"
         className="cursor-pointer rounded-full border border-parchment-border bg-parchment-text px-4 py-2 font-serif text-xs text-parchment-card hover:bg-parchment-text-strong"

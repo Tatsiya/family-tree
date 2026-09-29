@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import type { Person, Tree } from '../model/types'
-import { SEED_TREE } from '../model/seed'
+
+const EMPTY_TREE: Tree = {
+    rootPersonId: '',
+    persons: {},
+    families: {},
+}
 
 interface TreeState {
     tree: Tree
@@ -9,10 +14,11 @@ interface TreeState {
     addPerson: (draft: Omit<Person, 'id'>) => void
     deletePerson: (personId: string) => void
     updatePeson: (person: Person) => void
+    loadTree: (tree: Tree) => void
 }
 
 export const useTreeStore = create<TreeState>((set, get) => ({
-    tree: SEED_TREE,
+    tree: EMPTY_TREE,
     selectedId: undefined,
 
     togglePerson(personId) {
@@ -41,5 +47,9 @@ export const useTreeStore = create<TreeState>((set, get) => ({
         const tree = structuredClone(get().tree)
         tree.persons[person.id] = person
         set({ tree })
+    },
+
+    loadTree(tree) {
+        set({ tree, selectedId: undefined })
     },
 }))

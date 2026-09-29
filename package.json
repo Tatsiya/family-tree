@@ -11,14 +11,18 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "d3-flextree": "^2.1.2",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-icons": "^5.7.0",
+    "read-gedcom": "^0.3.2",
     "tailwindcss": "^4.3.3",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/d3-flextree": "^2.1.4",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

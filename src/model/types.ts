@@ -12,6 +12,7 @@ export interface Person {
   middleName: string
   lastName: string
   maidenName?: string
+  sex?: 'M' | 'F'
   dateOfBirth?: string
   dateOfDeath?: string
   placeOfBirth?: string
