@@ -24,7 +24,7 @@ export function TreeCanvas({ tree }: TreeCanvasProps) {
     <div className="flex-1 overflow-auto p-6">
       <svg width={layout.width} height={layout.height}>
         {layout.edges.map((edge) => (
-          <ConnectorLine key={edge.id} path={edge.path} secondary={edge.secondary} />
+          <ConnectorLine key={edge.id} path={edge.path} secondary={edge.secondary} kind={edge.kind} />
         ))}
         {layout.persons.map((person) => (
           <PersonNode

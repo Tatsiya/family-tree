@@ -30,6 +30,7 @@ export const useTreeStore = create<TreeState>((set, get) => ({
         const tree = structuredClone(get().tree)
         const id = crypto.randomUUID()
         tree.persons[id] = { ...draft, id }
+        if (!tree.persons[tree.rootPersonId]) tree.rootPersonId = id
         set({ tree })
     },
 
@@ -39,6 +40,9 @@ export const useTreeStore = create<TreeState>((set, get) => ({
         for (const family of Object.values(tree.families ?? {})) {
             family.partners = family.partners.filter(id => id !== personId)
             family.children = family.children?.filter(child => child.id !== personId)
+        }
+        if (tree.rootPersonId === personId) {
+            tree.rootPersonId = Object.keys(tree.persons)[0] ?? ''
         }
         set({ tree })
     },
