@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import type { RefObject } from "react";
 import { computeTreeLayout } from "../../model/treeLayout";
 import { NODE_HEIGHT } from "../../model/treeLayoutConstants";
 import type { Tree } from "../../model/types";
@@ -9,9 +10,10 @@ import { ZoomControls } from "./ZoomControls";
 
 export interface TreeCanvasProps {
   tree: Tree;
+  svgRef: RefObject<SVGSVGElement | null>;
 }
 
-export function TreeCanvas({ tree }: TreeCanvasProps) {
+export function TreeCanvas({ tree, svgRef }: TreeCanvasProps) {
   const layout = useMemo(() => computeTreeLayout(tree), [tree]);
   const { scrollRef, scale, zoomIn, zoomOut, canZoomIn, canZoomOut, centerOn, isPanning } = useZoomPan();
 
@@ -38,6 +40,7 @@ export function TreeCanvas({ tree }: TreeCanvasProps) {
         className={`h-full overflow-auto p-6 ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
       >
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           width={layout.width * scale}
           height={layout.height * scale}
