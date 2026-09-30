@@ -3,7 +3,7 @@ import type { FlextreeNode } from "d3-flextree";
 import type { Family, Tree } from "./types";
 import { connectorPath } from "./connectorPath";
 import type { EdgeSource } from "./connectorPath";
-import { buildAncestorGroup, fullRow, rowWidth } from "./ancestorGroup";
+import { buildAncestorGroup, fullRow, hasName, rowWidth } from "./ancestorGroup";
 import type { AncestorGroupNode } from "./ancestorGroup";
 import { NODE_WIDTH, NODE_HEIGHT, SIBLING_GAP, GROUP_GAP, GENERATION_GAP } from "./treeLayoutConstants";
 
@@ -72,23 +72,7 @@ interface RawLayout {
 
 const EMPTY_LAYOUT: TreeLayout = { persons: [], edges: [], width: 0, height: 0 };
 
-// Renders as a pedigree chart: the tree's anchor person sits at the bottom,
-// with their parents, grandparents, etc. fanning upward above them, and each
-// ancestor's own siblings (plus half-siblings from a parent's other
-// marriage) shown alongside them. A couple always shares one flextree node
-// so they stay next to each other no matter how much deeper one side's
-// known ancestry runs than the other's.
-export function computeTreeLayout(tree: Tree): TreeLayout {
-  if (!tree.persons[tree.rootPersonId]) return EMPTY_LAYOUT;
-
-  const positionedRoot = layoutAncestorGroups(tree);
-  return flipAndTranslate(collectPositions(positionedRoot));
-}
-
-// Builds the ancestor-group hierarchy (see ancestorGroup.ts) and runs it
-// through d3-flextree to get each row's raw x/y position (pre axis-flip,
-// pre translation).
-function layoutAncestorGroups(tree: Tree): FlextreeNode<AncestorGroupNode> {
+function buildFamiliesByPartnerId(tree: Tree): Map<string, Family[]> {
   const familiesByPartnerId = new Map<string, Family[]>();
   for (const family of Object.values(tree.families ?? {})) {
     for (const partnerId of family.partners) {
@@ -97,13 +81,64 @@ function layoutAncestorGroups(tree: Tree): FlextreeNode<AncestorGroupNode> {
       else familiesByPartnerId.set(partnerId, [family]);
     }
   }
+  return familiesByPartnerId;
+}
+
+// The root's own first marriage on record, if any. Rendered as a couple --
+// like any ancestor's own parents -- rather than a same-generation "extra"
+// spouse, so it gets the normal solid marriage bridge and the spouse's own
+// ancestry can trace upward too. Picked arbitrarily (first found) when the
+// root has more than one marriage; the rest still show as dashed "extra
+// marriage" bridges via the usual mechanism.
+function primaryRootMarriage(
+  tree: Tree,
+  familiesByPartnerId: Map<string, Family[]>,
+): { family: Family; spouseId: string } | undefined {
+  for (const family of familiesByPartnerId.get(tree.rootPersonId) ?? []) {
+    const spouseId = family.partners.find(
+      (id) => id !== tree.rootPersonId && tree.persons[id] && hasName(tree.persons[id]),
+    );
+    if (spouseId) return { family, spouseId };
+  }
+  return undefined;
+}
+
+// Renders as a pedigree chart: the tree's anchor person sits at the bottom,
+// with their parents, grandparents, etc. fanning upward above them, and each
+// ancestor's own siblings (plus half-siblings from a parent's other
+// marriage) shown alongside them. A couple always shares one flextree node
+// so they stay next to each other no matter how much deeper one side's
+// known ancestry runs than the other's. The root's own marriage and
+// immediate children -- the one downward step this otherwise purely-upward
+// chart takes -- are layered on afterward; see addRootDescendants.
+export function computeTreeLayout(tree: Tree): TreeLayout {
+  if (!tree.persons[tree.rootPersonId]) return EMPTY_LAYOUT;
+
+  const familiesByPartnerId = buildFamiliesByPartnerId(tree);
+  const rootMarriage = primaryRootMarriage(tree, familiesByPartnerId);
+
+  const positionedRoot = layoutAncestorGroups(tree, familiesByPartnerId, rootMarriage);
+  const layout = flipAndTranslate(collectPositions(positionedRoot));
+
+  return addRootDescendants(tree, layout, familiesByPartnerId, rootMarriage);
+}
+
+// Builds the ancestor-group hierarchy (see ancestorGroup.ts) and runs it
+// through d3-flextree to get each row's raw x/y position (pre axis-flip,
+// pre translation).
+function layoutAncestorGroups(
+  tree: Tree,
+  familiesByPartnerId: Map<string, Family[]>,
+  rootMarriage: { family: Family; spouseId: string } | undefined,
+): FlextreeNode<AncestorGroupNode> {
+  const rootPersonIds = rootMarriage ? [tree.rootPersonId, rootMarriage.spouseId] : [tree.rootPersonId];
 
   const anchorGroup = buildAncestorGroup(
     tree,
-    [tree.rootPersonId],
+    rootPersonIds,
     familiesByPartnerId,
     new Set<string>(),
-    null,
+    rootMarriage?.family.id ?? null,
   );
 
   const layout = flextree<AncestorGroupNode>({
@@ -265,4 +300,65 @@ function flipAndTranslate(raw: RawLayout): TreeLayout {
 // The x-position of a specific person within a node's combined row.
 function tracedPersonPosition(node: FlextreeNode<AncestorGroupNode>, personId: string): number {
   return rowPositions(node).get(personId) as number;
+}
+
+// Adds the root's own immediate children -- from every marriage they're a
+// partner in, primary or extra -- as one row directly below their card:
+// the one downward step this otherwise purely-upward pedigree chart takes.
+// Scoped to the root only: the layout has no general notion of
+// "descendants of an arbitrary person" yet, so a child added to anyone
+// else still saves correctly (see linkNewRelative) but has nowhere to
+// render until the tree can be re-rooted onto them.
+function addRootDescendants(
+  tree: Tree,
+  layout: TreeLayout,
+  familiesByPartnerId: Map<string, Family[]>,
+  rootMarriage: { family: Family; spouseId: string } | undefined,
+): TreeLayout {
+  const rootPosition = layout.persons.find((p) => p.personId === tree.rootPersonId);
+  if (!rootPosition) return layout;
+
+  const childIds = new Set<string>();
+  for (const family of familiesByPartnerId.get(tree.rootPersonId) ?? []) {
+    for (const child of family.children ?? []) {
+      if (tree.persons[child.id] && hasName(tree.persons[child.id])) childIds.add(child.id);
+    }
+  }
+  if (childIds.size === 0) return layout;
+
+  const spousePosition = rootMarriage
+    ? layout.persons.find((p) => p.personId === rootMarriage.spouseId)
+    : undefined;
+  const centerX = spousePosition ? (rootPosition.x + spousePosition.x) / 2 : rootPosition.x;
+  const childY = rootPosition.y + NODE_HEIGHT + GENERATION_GAP;
+
+  const row = [...childIds];
+  const totalRowWidth = rowWidth(row);
+  // Centered under the root (or root+spouse bridge) whenever that fits;
+  // pinned to the left edge instead of going negative in the rare case of
+  // more children than the ancestor chart above is wide -- growing the
+  // canvas rightward is free, but shifting everything already laid out
+  // (including already-built connector path strings) to make room on the
+  // left is not worth the complexity for this edge case.
+  const startX = Math.max(0, centerX - totalRowWidth / 2);
+  const childPersons: PositionedPerson[] = row.map((personId, index) => ({
+    personId,
+    x: startX + index * (NODE_WIDTH + SIBLING_GAP) + NODE_WIDTH / 2,
+    y: childY,
+  }));
+
+  const { solid, dashed } = connectorPath(
+    childPersons.map((p) => ({ x: p.x, y: p.y + NODE_HEIGHT })),
+    { x: centerX, y: rootPosition.y + NODE_HEIGHT / 2 },
+    0.5,
+  );
+  const edges: PositionedEdge[] = [{ id: "root-children-solid", kind: "connector", path: solid }];
+  if (dashed) edges.push({ id: "root-children-dashed", kind: "connector", secondary: true, path: dashed });
+
+  return {
+    persons: [...layout.persons, ...childPersons],
+    edges: [...layout.edges, ...edges],
+    width: Math.max(layout.width, startX + totalRowWidth),
+    height: layout.height + NODE_HEIGHT + GENERATION_GAP,
+  };
 }

@@ -238,7 +238,18 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
   // than added on top of the page, so a fixed paper preset (A4, A3, ...)
   // still comes out at exactly that size instead of running over it.
   const paddingPt = mmToPoints(EXPORT_PADDING_PX * PX_TO_MM);
-  const scale = (pageWidthPt - paddingPt * 2) / plan.width;
+  // The page's aspect ratio always exactly matches the tree's own (see
+  // resolvePdfPageSize), so a scale derived from width alone doesn't leave
+  // equal room on every side once padding is subtracted -- for a wide tree
+  // (the common case, more so once a couple or a row of children widens it
+  // further) that understates the padding needed vertically enough to run
+  // the content off the bottom of the page. Taking whichever axis is
+  // tighter guarantees the content fits within the padded box on both,
+  // even though the actual margin then isn't pixel-identical on every side.
+  const scale = Math.min(
+    (pageWidthPt - paddingPt * 2) / plan.width,
+    (pageHeightPt - paddingPt * 2) / plan.height,
+  );
 
   const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
   const toColor = (c: RgbColor) => rgb(c.r, c.g, c.b);
