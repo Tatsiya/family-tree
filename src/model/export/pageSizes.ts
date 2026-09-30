@@ -18,7 +18,7 @@ export const PDF_PAGE_SIZES: PdfPageSize[] = [
   { id: "a0", label: "A0 (Extra large poster)", widthMm: 841, heightMm: 1189 },
 ];
 
-const PX_TO_MM = 25.4 / 96;
+export const PX_TO_MM = 25.4 / 96;
 // Ceiling for "Fit to tree" so an unusually tall or wide tree still
 // produces a page a print shop can actually handle.
 const MAX_FIT_DIMENSION_MM = 1189; // A0's long edge

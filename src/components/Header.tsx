@@ -1,10 +1,8 @@
 import { useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Download, Upload, UserPlus } from "lucide-react";
-import AddPersonForm from "./AddPersonForm";
 import { ExportDialog } from "./ExportDialog";
 import { GedcomImportInput } from "./import/GedcomImportInput";
-import { useClickOutside } from "../hooks/useClickOutside";
 import { useGedcomImport } from "../hooks/useGedcomImport";
 import { useTreeStore } from "../store/treeStore";
 
@@ -19,12 +17,9 @@ const secondaryButton =
   "flex h-11 items-center gap-2 rounded-full border border-border-strong bg-transparent px-4 text-sm font-semibold text-secondary-text transition-colors hover:bg-hover-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 function Header({ svgRef }: HeaderProps) {
-  const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
-  const addRef = useRef<HTMLDivElement>(null);
-  useClickOutside(addRef, () => setIsAddPersonOpen(false), isAddPersonOpen);
-
   const [isExportOpen, setIsExportOpen] = useState(false);
   const hasTree = useTreeStore((s) => Object.keys(s.tree.persons).length > 0);
+  const openAddPerson = useTreeStore((s) => s.openAddPerson);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { importFile, status, error } = useGedcomImport();
@@ -39,18 +34,12 @@ function Header({ svgRef }: HeaderProps) {
         My Family Tree
       </h1>
       <div className="flex gap-3">
-        <div className="relative" ref={addRef}>
-          <button
-            className={primaryButton}
-            onClick={() => setIsAddPersonOpen((open) => !open)}
-          >
+        {!hasTree && (
+          <button className={primaryButton} onClick={openAddPerson}>
             <UserPlus size={16} />
             Add Person
           </button>
-          {isAddPersonOpen && (
-            <AddPersonForm onClose={() => setIsAddPersonOpen(false)} />
-          )}
-        </div>
+        )}
         <div className="relative">
           <button
             className={secondaryButton}

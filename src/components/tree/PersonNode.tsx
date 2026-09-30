@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { KeyboardEvent } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Pencil, UserPlus } from "lucide-react";
 import { NODE_HEIGHT, NODE_WIDTH } from "../../model/treeLayoutConstants";
 import {
   buildPersonCardRows,
@@ -14,6 +14,7 @@ import type { PersonCardRow } from "../../model/formatPersonNode";
 import { getInitials } from "../../model/initials";
 import type { MeasureTextWidth } from "../../model/textFit";
 import { useTreeStore } from "../../store/treeStore";
+import { CardIconButton } from "./CardIconButton";
 import { PersonAvatar } from "./PersonAvatar";
 
 function rowClassName(kind: PersonCardRow["kind"]): string {
@@ -37,6 +38,12 @@ export interface PersonNodeProps {
 
 const AVATAR_R = AVATAR_DIAMETER / 2;
 const AVATAR_CY = CARD_TOP_PADDING + AVATAR_R;
+
+// Both card icon buttons are the same size/hit-target -- only their corner
+// (top-left vs top-right) differs.
+const CARD_ICON_SIZE = 12;
+const CARD_ICON_HIT_RADIUS = 12;
+const CARD_ICON_INSET = 18;
 
 // A single offscreen canvas per font family, reused across every card:
 // canvas text measurement is cheap, but there's no reason to allocate one
@@ -68,6 +75,8 @@ export function PersonNode({ personId, x, y }: PersonNodeProps) {
   const person = useTreeStore((s) => s.tree.persons[personId]);
   const isSelected = useTreeStore((s) => s.selectedId === personId);
   const togglePerson = useTreeStore((s) => s.togglePerson);
+  const openEditPerson = useTreeStore((s) => s.openEditPerson);
+  const openRelationPicker = useTreeStore((s) => s.openRelationPicker);
 
   const rows = useMemo(() => (person ? buildPersonCardRows(person, measureCardText) : []), [person]);
 
@@ -87,6 +96,8 @@ export function PersonNode({ personId, x, y }: PersonNodeProps) {
 
   if (!person) return null;
 
+  const fullName = [person.name, person.middleName, person.lastName].filter(Boolean).join(" ");
+
   function handleKeyDown(e: KeyboardEvent<SVGGElement>) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -97,10 +108,10 @@ export function PersonNode({ personId, x, y }: PersonNodeProps) {
   return (
     <g
       transform={`translate(${x - NODE_WIDTH / 2}, ${y})`}
-      className="cursor-pointer outline-none transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group cursor-pointer outline-none transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       role="button"
       tabIndex={0}
-      aria-label={`${[person.name, person.middleName, person.lastName].filter(Boolean).join(" ")}`}
+      aria-label={fullName}
       onClick={() => togglePerson(personId)}
       onKeyDown={handleKeyDown}
     >
@@ -116,6 +127,24 @@ export function PersonNode({ personId, x, y }: PersonNodeProps) {
         }
       />
       <PersonAvatar sex={person.sex} initials={getInitials(person)} cx={NODE_WIDTH / 2} cy={AVATAR_CY} r={AVATAR_R} />
+      <CardIconButton
+        icon={UserPlus}
+        cx={CARD_ICON_INSET}
+        cy={CARD_ICON_INSET}
+        size={CARD_ICON_SIZE}
+        hitRadius={CARD_ICON_HIT_RADIUS}
+        ariaLabel={`Add relative to ${fullName}`}
+        onActivate={() => openRelationPicker(personId)}
+      />
+      <CardIconButton
+        icon={Pencil}
+        cx={NODE_WIDTH - CARD_ICON_INSET}
+        cy={CARD_ICON_INSET}
+        size={CARD_ICON_SIZE}
+        hitRadius={CARD_ICON_HIT_RADIUS}
+        ariaLabel={`Edit ${fullName}`}
+        onActivate={() => openEditPerson(personId)}
+      />
       {rows.map((row, index) => {
         if (row.kind === "place" && placeIconStartX !== null) {
           return (

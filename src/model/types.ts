@@ -16,6 +16,8 @@ export interface Person {
   dateOfBirth?: string
   dateOfDeath?: string
   placeOfBirth?: string
+  placeOfBirthLat?: number
+  placeOfBirthLng?: number
 }
 
 export interface Family {
