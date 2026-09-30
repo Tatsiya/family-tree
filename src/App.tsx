@@ -5,6 +5,14 @@ import PersonPanel from "./components/PersonPanel";
 import Header from "./components/Header";
 import { PersonForm } from "./components/PersonForm";
 import { RelationPickerModal } from "./components/RelationPickerModal";
+import type { RelativeRelation } from "./model/linkNewRelative";
+
+const RELATIVE_FORM_TITLE: Record<RelativeRelation, string> = {
+  parent: "Add parent",
+  spouse: "Add spouse",
+  child: "Add child",
+  sibling: "Add sibling",
+};
 
 export default function App() {
   const tree = useTreeStore((s) => s.tree);
@@ -49,7 +57,7 @@ export default function App() {
 
       {personFormState.kind === "addRelative" && tree.persons[personFormState.anchorId] && (
         <PersonForm
-          title={personFormState.relation === "parent" ? "Add parent" : "Add sibling"}
+          title={RELATIVE_FORM_TITLE[personFormState.relation]}
           submitLabel="Add"
           onSubmit={(draft) => addRelative(personFormState.anchorId, personFormState.relation, draft)}
           onClose={closePersonForm}

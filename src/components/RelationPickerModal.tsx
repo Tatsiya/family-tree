@@ -11,6 +11,8 @@ export interface RelationPickerModalProps {
 
 const RELATION_OPTIONS: { value: RelativeRelation; label: string }[] = [
   { value: "parent", label: "Parent" },
+  { value: "spouse", label: "Spouse" },
+  { value: "child", label: "Child" },
   { value: "sibling", label: "Sibling" },
 ];
 
