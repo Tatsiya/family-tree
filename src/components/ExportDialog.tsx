@@ -20,10 +20,10 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string; description: string 
 ];
 
 function toggleButtonClass(active: boolean): string {
-  return `flex-1 rounded-lg border px-2.5 py-2 font-serif text-xs transition-colors focus:outline-2 focus:outline-offset-1 focus:outline-parchment-border ${
+  return `flex-1 rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors focus:outline-2 focus:outline-offset-2 focus:outline-accent ${
     active
-      ? "border-parchment-text bg-parchment-text text-parchment-card"
-      : "border-parchment-border bg-parchment-panel text-parchment-text hover:bg-parchment-bg"
+      ? "border-primary bg-primary text-surface"
+      : "border-border bg-surface text-ink hover:bg-bg"
   }`;
 }
 
@@ -48,7 +48,7 @@ export function ExportDialog({ svgRef, onClose }: ExportDialogProps) {
     <Modal title="Export Family Tree" onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div>
-          <p className="mb-2 font-serif text-xs font-semibold text-parchment-text">Format</p>
+          <p className="mb-2 text-xs font-semibold text-ink">Format</p>
           <div className="flex gap-2">
             {FORMAT_OPTIONS.map((option) => (
               <button
@@ -62,13 +62,13 @@ export function ExportDialog({ svgRef, onClose }: ExportDialogProps) {
             ))}
           </div>
           {activeFormat && (
-            <p className="mt-2 font-serif text-xs text-parchment-text">{activeFormat.description}</p>
+            <p className="mt-2 text-xs text-muted">{activeFormat.description}</p>
           )}
         </div>
 
         {format === "png" && (
           <div>
-            <p className="mb-2 font-serif text-xs font-semibold text-parchment-text">Quality</p>
+            <p className="mb-2 text-xs font-semibold text-ink">Quality</p>
             <div className="flex gap-2">
               {PNG_QUALITY_OPTIONS.map((option) => (
                 <button
@@ -86,7 +86,7 @@ export function ExportDialog({ svgRef, onClose }: ExportDialogProps) {
 
         {format === "pdf" && (
           <div>
-            <p className="mb-2 font-serif text-xs font-semibold text-parchment-text">Paper size</p>
+            <p className="mb-2 text-xs font-semibold text-ink">Paper size</p>
             <div className="flex flex-wrap gap-2">
               {PDF_PAGE_SIZES.map((option) => (
                 <button
@@ -103,7 +103,7 @@ export function ExportDialog({ svgRef, onClose }: ExportDialogProps) {
         )}
 
         {status === "error" && error && (
-          <p className="rounded-lg border border-parchment-border bg-parchment-panel px-3 py-2 font-serif text-xs text-parchment-text">
+          <p className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-ink">
             {error}
           </p>
         )}
@@ -112,7 +112,7 @@ export function ExportDialog({ svgRef, onClose }: ExportDialogProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-parchment-border bg-parchment-panel px-4 py-2 font-serif text-xs text-parchment-text transition-colors hover:bg-parchment-bg focus:outline-2 focus:outline-offset-1 focus:outline-parchment-border"
+            className="rounded-full border border-border-strong bg-transparent px-4 py-2 text-xs font-semibold text-secondary-text transition-colors hover:bg-hover-tint focus:outline-2 focus:outline-offset-2 focus:outline-accent"
           >
             Cancel
           </button>
@@ -120,7 +120,7 @@ export function ExportDialog({ svgRef, onClose }: ExportDialogProps) {
             type="button"
             onClick={handleExport}
             disabled={status === "exporting"}
-            className="cursor-pointer rounded-full border border-parchment-border bg-parchment-text px-4 py-2 font-serif text-xs text-parchment-card transition-colors hover:bg-parchment-text-strong focus:outline-2 focus:outline-offset-1 focus:outline-parchment-border disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer rounded-full border border-primary bg-primary px-4 py-2 text-xs font-semibold text-surface transition-colors hover:bg-primary-hover focus:outline-2 focus:outline-offset-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             {status === "exporting" ? "Exporting…" : "Download"}
           </button>

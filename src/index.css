@@ -1,14 +1,76 @@
 @import "tailwindcss";
 
-@theme {
-  --font-serif: 'Playfair Display', serif;
+:root {
+  --bg: #f3ecdf;
+  --surface: #fbf7f0;
+  --card: #fffdf8;
+  --ink: #2b2420;
+  --ink-2: #5e5146;
+  --muted: #756656;
+  --border: #e7dcc8;
+  --border-strong: #d6c7ae;
+  --primary: #3e5a45;
+  --primary-hover: #2c4232;
+  --accent: #c0704d;
+  --line: #bfa27e;
+  --gold: #a8825a;
+  --male-bg: #dce6e4;
+  --male-fg: #34585c;
+  --female-bg: #f3e0da;
+  --female-fg: #96463f;
+  --border-soft: #e6dccb;
+  --hover-tint: #efe5d3;
+  --secondary-text: #4a3f35;
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgba(74, 52, 30, 0.06), 0 6px 16px rgba(74, 52, 30, 0.07);
+  --shadow-card-hover: 0 2px 4px rgba(74, 52, 30, 0.08), 0 12px 24px rgba(74, 52, 30, 0.12);
+  --shadow-selected: 0 0 0 5px rgba(192, 112, 77, 0.16), 0 10px 24px rgba(74, 52, 30, 0.14);
+}
 
-  --color-parchment-bg: #e8e0d0;
-  --color-parchment-card: #f5f0e8;
-  --color-parchment-panel: #faf8f5;
-  --color-parchment-border: #c4a882;
-  --color-parchment-border-male: #7d93a3;
-  --color-parchment-border-female: #b98a95;
-  --color-parchment-text: #2c1810;
-  --color-parchment-text-strong: #442617;
+@theme {
+  --font-serif: "Cormorant Garamond", serif;
+  --font-sans: "Manrope", sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-accent: var(--accent);
+  --color-line: var(--line);
+  --color-gold: var(--gold);
+  --color-male-bg: var(--male-bg);
+  --color-male-fg: var(--male-fg);
+  --color-female-bg: var(--female-bg);
+  --color-female-fg: var(--female-fg);
+  --color-border-soft: var(--border-soft);
+  --color-hover-tint: var(--hover-tint);
+  --color-secondary-text: var(--secondary-text);
+}
+
+body {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  color: var(--ink);
+  background-color: var(--bg);
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-panel-in {
+  animation: panel-in 180ms ease-out;
 }

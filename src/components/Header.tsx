@@ -12,8 +12,11 @@ export interface HeaderProps {
   svgRef: RefObject<SVGSVGElement | null>;
 }
 
-const toolbarButton =
-  "flex items-center gap-2 rounded-full border border-parchment-border bg-parchment-card px-4 py-2 font-serif text-xs text-parchment-text transition-colors hover:bg-parchment-bg disabled:cursor-not-allowed disabled:opacity-50";
+const primaryButton =
+  "flex h-11 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-surface transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
+
+const secondaryButton =
+  "flex h-11 items-center gap-2 rounded-full border border-border-strong bg-transparent px-4 text-sm font-semibold text-secondary-text transition-colors hover:bg-hover-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 function Header({ svgRef }: HeaderProps) {
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
@@ -31,14 +34,14 @@ function Header({ svgRef }: HeaderProps) {
   }
 
   return (
-    <header className="flex items-center justify-between border-b border-parchment-border bg-parchment-panel px-10 py-5">
-      <h1 className="m-0 font-serif text-[22px] font-semibold text-parchment-text">
+    <header className="flex h-18 items-center justify-between border-b border-border-soft bg-surface px-7">
+      <h1 className="m-0 font-serif text-[28px] leading-none font-bold text-ink">
         My Family Tree
       </h1>
       <div className="flex gap-3">
         <div className="relative" ref={addRef}>
           <button
-            className={toolbarButton}
+            className={primaryButton}
             onClick={() => setIsAddPersonOpen((open) => !open)}
           >
             <UserPlus size={16} />
@@ -50,7 +53,7 @@ function Header({ svgRef }: HeaderProps) {
         </div>
         <div className="relative">
           <button
-            className={toolbarButton}
+            className={secondaryButton}
             onClick={handleImport}
             disabled={status === "loading"}
           >
@@ -65,7 +68,7 @@ function Header({ svgRef }: HeaderProps) {
         </div>
         <div className="relative">
           <button
-            className={toolbarButton}
+            className={secondaryButton}
             onClick={() => setIsExportOpen(true)}
             disabled={!hasTree}
           >

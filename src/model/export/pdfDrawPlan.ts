@@ -1,9 +1,10 @@
-import type { Tree } from "../types";
+import type { Person, Tree } from "../types";
 import type { TreeLayout } from "../treeLayout";
 import { NODE_HEIGHT, NODE_WIDTH } from "../treeLayoutConstants";
-import { buildPersonCardRows } from "../formatPersonNode";
+import { AVATAR_DIAMETER, CARD_TOP_PADDING, buildPersonCardRows } from "../formatPersonNode";
+import type { PersonCardRowKind } from "../formatPersonNode";
+import { getInitials } from "../initials";
 import type { MeasureTextWidth } from "../textFit";
-import { FEMALE_ICON_PATH, MALE_ICON_PATH } from "./personNodeIcon";
 import { roundedRectPath } from "./roundedRectPath";
 
 export interface RgbColor {
@@ -17,11 +18,19 @@ export interface RgbColor {
 export interface PdfThemeColors {
   background: RgbColor;
   card: RgbColor;
-  panel: RgbColor;
+  surface: RgbColor;
   border: RgbColor;
-  borderMale: RgbColor;
-  borderFemale: RgbColor;
-  text: RgbColor;
+  line: RgbColor;
+  gold: RgbColor;
+  ink: RgbColor;
+  inkSecondary: RgbColor;
+  muted: RgbColor;
+  maleBg: RgbColor;
+  maleFg: RgbColor;
+  femaleBg: RgbColor;
+  femaleFg: RgbColor;
+  neutralBg: RgbColor;
+  neutralFg: RgbColor;
 }
 
 export interface PdfConnector {
@@ -29,6 +38,10 @@ export interface PdfConnector {
   strokeWidth: number;
   color: RgbColor;
   dashed: boolean;
+  // Center of the two-rings badge drawn on a couple's marriage bridge (see
+  // ConnectorLine.tsx for the on-screen equivalent) -- unset for a plain
+  // parent/child connector.
+  ringBadgeCenter?: { x: number; y: number };
 }
 
 export interface PdfPersonTextLine {
@@ -36,15 +49,15 @@ export interface PdfPersonTextLine {
   fontSize: number;
   bold: boolean;
   y: number;
+  kind: PersonCardRowKind;
 }
 
 export interface PdfPersonCard {
   x: number;
   y: number;
-  borderColor: RgbColor;
-  iconPath: string;
-  iconColor: RgbColor;
-  iconCircleColor: RgbColor;
+  avatarFill: RgbColor;
+  avatarText: RgbColor;
+  initials: string;
   lines: PdfPersonTextLine[];
 }
 
@@ -53,26 +66,27 @@ export interface PdfDrawPlan {
   height: number;
   backgroundColor: RgbColor;
   cardPath: string;
+  borderColor: RgbColor;
   connectors: PdfConnector[];
   cards: PdfPersonCard[];
 }
 
-const AVATAR_CY = 30;
-const AVATAR_R = 22;
-const ICON_SIZE = AVATAR_R * 1.5;
-const CARD_RADIUS = 16;
+export const AVATAR_R = AVATAR_DIAMETER / 2;
+export const AVATAR_CY = CARD_TOP_PADDING + AVATAR_R;
+export const RING_BADGE_RADIUS = 11;
+const CARD_RADIUS = 14;
 
-function sexBorderColor(sex: "M" | "F" | undefined, colors: PdfThemeColors): RgbColor {
-  if (sex === "M") return colors.borderMale;
-  if (sex === "F") return colors.borderFemale;
-  return colors.border;
+function avatarColors(sex: "M" | "F" | undefined, colors: PdfThemeColors): { fill: RgbColor; text: RgbColor } {
+  if (sex === "M") return { fill: colors.maleBg, text: colors.maleFg };
+  if (sex === "F") return { fill: colors.femaleBg, text: colors.femaleFg };
+  return { fill: colors.neutralBg, text: colors.neutralFg };
 }
 
-// Rebuilds the tree's visual content (cards, connectors, avatar icons, text)
-// as plain draw data -- independent of pdf-lib and the DOM -- so the PDF
+// Rebuilds the tree's visual content (cards, connectors, avatars, text) as
+// plain draw data -- independent of pdf-lib and the DOM -- so the PDF
 // export can be drawn as true vector content instead of a rasterized image.
 // measureWidth lets the caller supply real font metrics (from the embedded
-// PDF font) so long names wrap/shrink to fit exactly as they do on screen.
+// PDF fonts) so long names wrap/shrink to fit exactly as they do on screen.
 export function buildPdfDrawPlan(
   tree: Tree,
   layout: TreeLayout,
@@ -81,25 +95,25 @@ export function buildPdfDrawPlan(
 ): PdfDrawPlan {
   const connectors: PdfConnector[] = layout.edges.map((edge) => ({
     path: edge.path,
-    strokeWidth: edge.kind === "bridge" ? 3 : 1.5,
-    color: colors.border,
+    strokeWidth: edge.kind === "bridge" ? 3 : 2,
+    color: colors.line,
     dashed: Boolean(edge.secondary),
+    ringBadgeCenter: edge.ringBadgeCenter,
   }));
 
   const cards: PdfPersonCard[] = layout.persons.flatMap((positioned) => {
-    const person = tree.persons[positioned.personId];
+    const person: Person | undefined = tree.persons[positioned.personId];
     if (!person) return [];
 
-    const borderColor = sexBorderColor(person.sex, colors);
+    const { fill, text } = avatarColors(person.sex, colors);
     const lines: PdfPersonTextLine[] = buildPersonCardRows(person, measureWidth);
 
     const card: PdfPersonCard = {
       x: positioned.x - NODE_WIDTH / 2,
       y: positioned.y,
-      borderColor,
-      iconPath: person.sex === "F" ? FEMALE_ICON_PATH : MALE_ICON_PATH,
-      iconColor: borderColor,
-      iconCircleColor: colors.panel,
+      avatarFill: fill,
+      avatarText: text,
+      initials: getInitials(person),
       lines,
     };
     return [card];
@@ -110,9 +124,8 @@ export function buildPdfDrawPlan(
     height: layout.height,
     backgroundColor: colors.background,
     cardPath: roundedRectPath(NODE_WIDTH, NODE_HEIGHT, CARD_RADIUS),
+    borderColor: colors.border,
     connectors,
     cards,
   };
 }
-
-export { AVATAR_CY, AVATAR_R, ICON_SIZE };

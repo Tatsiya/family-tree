@@ -27,7 +27,7 @@ export function GedcomImportInput({
         onChange={handleChange}
       />
       {error && (
-        <p className="absolute top-[calc(100%+6px)] right-0 z-10 w-[240px] rounded-xl border border-parchment-border bg-parchment-card p-3 font-serif text-xs text-parchment-text shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+        <p className="absolute top-[calc(100%+6px)] right-0 z-10 w-[240px] rounded-xl border border-border bg-card p-3 text-xs text-ink shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
           {error}
         </p>
       )}

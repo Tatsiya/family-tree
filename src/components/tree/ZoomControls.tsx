@@ -10,19 +10,21 @@ export interface ZoomControlsProps {
 }
 
 const zoomButton =
-  "flex items-center justify-center rounded-full p-1.5 text-parchment-text transition-colors hover:bg-parchment-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-parchment-border-male focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-11 items-center justify-center rounded-full text-secondary-text transition-colors hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 export function ZoomControls({ scale, onZoomIn, onZoomOut, canZoomIn, canZoomOut, className }: ZoomControlsProps) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-full border border-parchment-border bg-parchment-card px-2 py-1.5 font-serif text-xs text-parchment-text shadow-sm ${className ?? ""}`}
+      className={`flex items-center gap-1 rounded-full border border-border-soft bg-surface px-2 py-1 shadow-[0_4px_14px_rgba(74,52,30,0.08)] ${className ?? ""}`}
     >
       <button type="button" className={zoomButton} onClick={onZoomOut} disabled={!canZoomOut} aria-label="Zoom out">
-        <ZoomOut size={16} />
+        <ZoomOut size={18} />
       </button>
-      <span className="w-10 text-center tabular-nums">{Math.round(scale * 100)}%</span>
+      <span className="w-10 text-center text-[13px] font-semibold text-ink tabular-nums">
+        {Math.round(scale * 100)}%
+      </span>
       <button type="button" className={zoomButton} onClick={onZoomIn} disabled={!canZoomIn} aria-label="Zoom in">
-        <ZoomIn size={16} />
+        <ZoomIn size={18} />
       </button>
     </div>
   );

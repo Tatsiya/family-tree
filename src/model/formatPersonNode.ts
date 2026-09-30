@@ -1,6 +1,7 @@
 import type { Person } from "./types";
 import { NODE_WIDTH } from "./treeLayoutConstants";
-import { fitOrWrapText } from "./textFit";
+import { splitPlace } from "./splitPlace";
+import { truncateToFit, wrapToTwoLinesWithEllipsis } from "./textFit";
 import type { MeasureTextWidth } from "./textFit";
 
 // Shared between the on-screen PersonNode and the PDF export renderer, so
@@ -9,69 +10,141 @@ import type { MeasureTextWidth } from "./textFit";
 export function formatLifespan(dateOfBirth: string | undefined, dateOfDeath: string | undefined): string {
   const birthYear = dateOfBirth?.slice(0, 4);
   const deathYear = dateOfDeath?.slice(0, 4);
-  if (birthYear && deathYear) return `${birthYear}–${deathYear}`;
+  if (birthYear && deathYear) return `${birthYear} – ${deathYear}`;
   if (birthYear) return birthYear;
-  if (deathYear) return `–${deathYear}`;
+  if (deathYear) return `– ${deathYear}`;
   return "";
 }
 
 export function shortPlace(placeOfBirth: string | undefined): string | undefined {
-  return placeOfBirth?.split(",")[0]?.trim() || undefined;
+  return placeOfBirth ? splitPlace(placeOfBirth).headline || undefined : undefined;
 }
+
+export type PersonCardRowKind = "name" | "lastName" | "lifespan" | "place";
 
 export interface PersonCardRow {
   text: string;
   fontSize: number;
   bold: boolean;
   y: number;
+  // Which part of the card this row renders -- lets the on-screen card give
+  // each kind its own type treatment (the PDF renderer only uses
+  // text/fontSize/bold/y, so this is purely a screen-rendering hint).
+  kind: PersonCardRowKind;
 }
 
 // Horizontal padding keeps text off the card's rounded corners and border.
-const CARD_TEXT_WIDTH = NODE_WIDTH - 24;
-const NAME_FONT_SIZES = [13, 11, 9];
-const SECONDARY_FONT_SIZES = [12, 10, 9];
-// The card has room for about this many text rows below the avatar before
-// text would run past its bottom edge; a name long enough to wrap onto two
-// lines pushes place out first, since it's the least essential detail.
-const MAX_ROWS = 5;
+const CARD_SIDE_PADDING = 8;
+const CARD_TEXT_WIDTH = NODE_WIDTH - CARD_SIDE_PADDING * 2;
 
-const CARD_TEXT_TOP_Y = 64;
-const CARD_LINE_HEIGHT = 16;
+// Card geometry shared with the avatar drawn on top of it -- both the
+// on-screen SVG card and the PDF renderer derive the avatar's position from
+// these instead of each hardcoding its own copy of the same numbers.
+export const CARD_TOP_PADDING = 10;
+export const AVATAR_DIAMETER = 34;
+// Ratio of an avatar's initials font size to its radius (a 17px-radius
+// avatar gets 16px initials) -- shared so every renderer uses the same
+// proportion.
+export const AVATAR_INITIALS_FONT_RATIO = 16 / 17;
+
+const AVATAR_GAP = 5;
+// Gap between rows of different kinds -- not between a wrapped name's own
+// two lines, which use NAME_LINE_HEIGHT for that instead.
+const ROW_GAP = 2;
+
+const NAME_FONT_SIZE = 17;
+const NAME_LINE_HEIGHT = 1.1;
+const LAST_NAME_FONT_SIZE = 10.5;
+const LIFESPAN_FONT_SIZE = 11;
+const PLACE_FONT_SIZE = 10.5;
+
+// The place row's icon (drawn by PersonNode/the PDF renderer) sits before
+// its text -- reserved here too, so the text is truncated to leave it room
+// instead of being measured against the card's full width and overlapping
+// it once the icon is drawn.
+export const PLACE_ICON_SIZE = 10;
+export const PLACE_ICON_GAP = 3;
+// How far above the text baseline the icon's own top edge sits.
+export const PLACE_ICON_BASELINE_OFFSET_RATIO = 0.8;
+
+// How far below a line box's top a line's SVG baseline sits -- close enough
+// for both the on-screen fonts and the PDF's embedded ones to stack rows
+// tightly without per-font metrics.
+const BASELINE_RATIO = 0.78;
+// Generic single-line box height (ascent + descent + a little breathing
+// room) for rows that are never more than one line: last name, years, place.
+const SINGLE_LINE_HEIGHT = 1.15;
 
 export function buildPersonCardRows(person: Person, measureWidth: MeasureTextWidth): PersonCardRow[] {
   const givenNames = [person.name, person.middleName].filter(Boolean).join(" ");
   const lifespan = formatLifespan(person.dateOfBirth, person.dateOfDeath);
   const place = shortPlace(person.placeOfBirth);
 
-  const nameRows = givenNames
-    ? fitOrWrapText(givenNames, CARD_TEXT_WIDTH, NAME_FONT_SIZES, true, measureWidth)
-    : [];
-  const lastNameRows = person.lastName
-    ? fitOrWrapText(person.lastName, CARD_TEXT_WIDTH, NAME_FONT_SIZES, true, measureWidth)
-    : [];
+  const rows: Omit<PersonCardRow, "y">[] = [];
 
-  const rows: Omit<PersonCardRow, "y">[] = [
-    ...nameRows.map((row) => ({ ...row, bold: true })),
-    ...lastNameRows.map((row) => ({ ...row, bold: true })),
-  ];
-
-  if (lifespan) rows.push({ text: lifespan, fontSize: 12, bold: false });
-
-  // A given name that fits on one line leaves a line's worth of space
-  // unused compared to a wrapped one -- rather than let that sit as a gap
-  // between the name and whatever follows, start one row lower, so the
-  // block reads the same whether the name wrapped or not.
-  const startRow = nameRows.length < 2 ? 1 : 0;
-
-  if (place) {
-    const placeRows = fitOrWrapText(place, CARD_TEXT_WIDTH, SECONDARY_FONT_SIZES, false, measureWidth).map(
-      (row) => ({ ...row, bold: false }),
-    );
-    if (startRow + rows.length + placeRows.length <= MAX_ROWS) rows.push(...placeRows);
+  if (givenNames) {
+    for (const line of wrapToTwoLinesWithEllipsis(
+      givenNames,
+      CARD_TEXT_WIDTH,
+      NAME_FONT_SIZE,
+      true,
+      "name",
+      measureWidth,
+    )) {
+      rows.push({ text: line, fontSize: NAME_FONT_SIZE, bold: true, kind: "name" });
+    }
   }
 
-  return rows.slice(0, MAX_ROWS - startRow).map((row, index) => ({
-    ...row,
-    y: CARD_TEXT_TOP_Y + (startRow + index) * CARD_LINE_HEIGHT,
-  }));
+  if (person.lastName) {
+    // Uppercased here, in the actual text content, rather than left to a
+    // screen-only CSS text-transform -- the PDF renderer draws this string
+    // as-is, with no CSS of its own to apply the same transform.
+    rows.push({
+      text: truncateToFit(
+        person.lastName.toUpperCase(),
+        CARD_TEXT_WIDTH,
+        LAST_NAME_FONT_SIZE,
+        true,
+        "lastName",
+        measureWidth,
+      ),
+      fontSize: LAST_NAME_FONT_SIZE,
+      bold: true,
+      kind: "lastName",
+    });
+  }
+
+  if (lifespan) {
+    rows.push({ text: lifespan, fontSize: LIFESPAN_FONT_SIZE, bold: false, kind: "lifespan" });
+  }
+
+  if (place) {
+    const placeMaxWidth = CARD_TEXT_WIDTH - PLACE_ICON_SIZE - PLACE_ICON_GAP;
+    rows.push({
+      text: truncateToFit(place, placeMaxWidth, PLACE_FONT_SIZE, false, "place", measureWidth),
+      fontSize: PLACE_FONT_SIZE,
+      bold: false,
+      kind: "place",
+    });
+  }
+
+  // Rows stack tightly from just under the avatar: each row's own height
+  // advances the cursor, with a small fixed gap between rows of different
+  // kinds -- rather than every row claiming a fixed-size slot regardless of
+  // how tall it actually is, which is what used to leave a gap under the
+  // avatar whenever the name rendered smaller than that slot assumed.
+  let cursorTop = CARD_TOP_PADDING + AVATAR_DIAMETER + AVATAR_GAP;
+  let previousKind: PersonCardRowKind | undefined;
+
+  return rows.map((row) => {
+    const isWrappedNameLine = previousKind === "name" && row.kind === "name";
+    if (previousKind !== undefined && !isWrappedNameLine) cursorTop += ROW_GAP;
+
+    const lineHeight = row.kind === "name" ? row.fontSize * NAME_LINE_HEIGHT : row.fontSize * SINGLE_LINE_HEIGHT;
+    const y = cursorTop + row.fontSize * BASELINE_RATIO;
+    cursorTop += lineHeight;
+    previousKind = row.kind;
+
+    return { ...row, y };
+  });
 }
