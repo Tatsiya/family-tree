@@ -1,21 +1,24 @@
 import { useState } from "react";
 import { LineCapStyle, PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
+import type { PDFFont } from "pdf-lib";
 import type { ExportOptions } from "../model/export/types";
 import type { Tree } from "../model/types";
 import { computeTreeLayout } from "../model/treeLayout";
 import { NODE_WIDTH } from "../model/treeLayoutConstants";
+import { AVATAR_INITIALS_FONT_RATIO, PLACE_ICON_BASELINE_OFFSET_RATIO, PLACE_ICON_GAP, PLACE_ICON_SIZE } from "../model/formatPersonNode";
 import type { PdfPageSizeId } from "../model/export/pageSizes";
 import { resolvePdfPageSize, mmToPoints } from "../model/export/pageSizes";
 import { clampToCanvasLimit } from "../model/export/raster";
 import { exportFileName } from "../model/export/exportFileName";
-import { buildPdfDrawPlan, AVATAR_CY, AVATAR_R, ICON_SIZE } from "../model/export/pdfDrawPlan";
-import type { PdfThemeColors, RgbColor } from "../model/export/pdfDrawPlan";
+import { buildPdfDrawPlan, AVATAR_CY, AVATAR_R, RING_BADGE_RADIUS } from "../model/export/pdfDrawPlan";
+import type { PdfPersonTextLine, PdfThemeColors, RgbColor } from "../model/export/pdfDrawPlan";
 import type { MeasureTextWidth } from "../model/textFit";
 import { hexToRgb01 } from "../model/export/color";
-import { ICON_VIEWBOX_SIZE } from "../model/export/personNodeIcon";
-import playfairRegularUrl from "../assets/fonts/PlayfairDisplay-Regular.ttf";
-import playfairBoldUrl from "../assets/fonts/PlayfairDisplay-SemiBold.ttf";
+import { MAP_PIN_DOT, MAP_PIN_OUTLINE_PATH, MAP_PIN_VIEWBOX_SIZE } from "../model/export/mapPinIcon";
+import cormorantGaramondBoldUrl from "../assets/fonts/CormorantGaramond-Bold.ttf";
+import manropeBoldUrl from "../assets/fonts/Manrope-Bold.ttf";
+import manropeRegularUrl from "../assets/fonts/Manrope-Regular.ttf";
 
 export type ExportStatus = "idle" | "exporting" | "error";
 
@@ -61,20 +64,33 @@ function cssColor(variable: string, fallback: string): string {
 }
 
 function pageBackgroundColor(): string {
-  return cssColor("--color-parchment-bg", "#ffffff");
+  return cssColor("--bg", "#f3ecdf");
 }
 
 // Resolves the app's palette (see index.css) once at export time, since
-// the pure PDF draw-plan builder has no DOM access of its own.
+// the pure PDF draw-plan builder has no DOM access of its own. Reads the
+// root element's computed style once and pulls every variable off that one
+// declaration, rather than re-querying getComputedStyle per variable.
 function readThemeColors(): PdfThemeColors {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const readVar = (variable: string, fallback: string): string => rootStyle.getPropertyValue(variable).trim() || fallback;
+
   return {
-    background: hexToRgb01(cssColor("--color-parchment-bg", "#e8e0d0")),
-    card: hexToRgb01(cssColor("--color-parchment-card", "#f5f0e8")),
-    panel: hexToRgb01(cssColor("--color-parchment-panel", "#faf8f5")),
-    border: hexToRgb01(cssColor("--color-parchment-border", "#c4a882")),
-    borderMale: hexToRgb01(cssColor("--color-parchment-border-male", "#7d93a3")),
-    borderFemale: hexToRgb01(cssColor("--color-parchment-border-female", "#b98a95")),
-    text: hexToRgb01(cssColor("--color-parchment-text", "#2c1810")),
+    background: hexToRgb01(readVar("--bg", "#f3ecdf")),
+    card: hexToRgb01(readVar("--card", "#fffdf8")),
+    surface: hexToRgb01(readVar("--surface", "#fbf7f0")),
+    border: hexToRgb01(readVar("--border", "#e7dcc8")),
+    line: hexToRgb01(readVar("--line", "#bfa27e")),
+    gold: hexToRgb01(readVar("--gold", "#a8825a")),
+    ink: hexToRgb01(readVar("--ink", "#2b2420")),
+    inkSecondary: hexToRgb01(readVar("--ink-2", "#5e5146")),
+    muted: hexToRgb01(readVar("--muted", "#756656")),
+    maleBg: hexToRgb01(readVar("--male-bg", "#dce6e4")),
+    maleFg: hexToRgb01(readVar("--male-fg", "#34585c")),
+    femaleBg: hexToRgb01(readVar("--female-bg", "#f3e0da")),
+    femaleFg: hexToRgb01(readVar("--female-fg", "#96463f")),
+    neutralBg: hexToRgb01(readVar("--border", "#e7dcc8")),
+    neutralFg: hexToRgb01(readVar("--ink-2", "#5e5146")),
   };
 }
 
@@ -166,20 +182,30 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
   const layout = computeTreeLayout(tree);
   const colors = readThemeColors();
 
-  const [regularBytes, boldBytes] = await Promise.all([
-    fetchFontBytes(playfairRegularUrl),
-    fetchFontBytes(playfairBoldUrl),
+  const [cormorantBoldBytes, manropeBoldBytes, manropeRegularBytes] = await Promise.all([
+    fetchFontBytes(cormorantGaramondBoldUrl),
+    fetchFontBytes(manropeBoldUrl),
+    fetchFontBytes(manropeRegularUrl),
   ]);
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
-  const regularFont = await pdfDoc.embedFont(regularBytes, { subset: true });
-  const boldFont = await pdfDoc.embedFont(boldBytes, { subset: true });
+  // Not subset: fontkit's subsetter mis-renders a handful of glyphs in
+  // these particular (font-tools-instanced) files, silently dropping them.
+  // Embedding the full font avoids that at the cost of a larger file.
+  const [cormorantBoldFont, manropeBoldFont, manropeRegularFont] = await Promise.all([
+    pdfDoc.embedFont(cormorantBoldBytes, { subset: false }),
+    pdfDoc.embedFont(manropeBoldBytes, { subset: false }),
+    pdfDoc.embedFont(manropeRegularBytes, { subset: false }),
+  ]);
 
-  // Real glyph-metric measurement (not a character-count guess), so a long
-  // name wraps or shrinks to fit the card exactly as it does on screen.
-  const measureWidth: MeasureTextWidth = (text, fontSize, bold) =>
-    (bold ? boldFont : regularFont).widthOfTextAtSize(text, fontSize);
+  const fontForKind = (kind: PdfPersonTextLine["kind"]): PDFFont =>
+    kind === "name" ? cormorantBoldFont : kind === "lastName" ? manropeBoldFont : manropeRegularFont;
+  const colorForKind = (kind: PdfPersonTextLine["kind"]): RgbColor =>
+    kind === "name" ? colors.ink : kind === "lastName" ? colors.inkSecondary : colors.muted;
+
+  const measureWidth: MeasureTextWidth = (text, fontSize, _bold, kind) =>
+    fontForKind(kind).widthOfTextAtSize(text, fontSize);
 
   const plan = buildPdfDrawPlan(tree, layout, colors, measureWidth);
 
@@ -201,13 +227,33 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
       borderColor: toColor(connector.color),
       borderWidth: connector.strokeWidth * scale,
       borderDashArray: connector.dashed ? [8 * scale, 6 * scale] : undefined,
-      borderLineCap: connector.strokeWidth >= 3 ? LineCapStyle.Round : undefined,
+      borderLineCap: LineCapStyle.Round,
     });
+
+    if (connector.ringBadgeCenter) {
+      const cx = connector.ringBadgeCenter.x * scale;
+      const cy = pageHeightPt - connector.ringBadgeCenter.y * scale;
+      page.drawCircle({
+        x: cx,
+        y: cy,
+        size: RING_BADGE_RADIUS * scale,
+        color: toColor(colors.surface),
+        borderColor: toColor(colors.line),
+        borderWidth: 1.5 * scale,
+      });
+      for (const dx of [-2, 2]) {
+        page.drawCircle({
+          x: cx + dx * scale,
+          y: cy,
+          size: 4 * scale,
+          borderColor: toColor(colors.gold),
+          borderWidth: 1.4 * scale,
+        });
+      }
+    }
   }
 
-  const iconScale = (ICON_SIZE / ICON_VIEWBOX_SIZE) * scale;
-  const iconBoxX = NODE_WIDTH / 2 - ICON_SIZE / 2;
-  const iconBoxY = AVATAR_CY - ICON_SIZE / 2;
+  const mapPinScale = (PLACE_ICON_SIZE / MAP_PIN_VIEWBOX_SIZE) * scale;
 
   for (const card of plan.cards) {
     const originX = card.x * scale;
@@ -218,39 +264,71 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
       y: originYTop,
       scale,
       color: toColor(colors.card),
-      borderColor: toColor(card.borderColor),
-      borderWidth: 2 * scale,
+      borderColor: toColor(plan.borderColor),
+      borderWidth: 1 * scale,
     });
 
+    const avatarCx = originX + (NODE_WIDTH / 2) * scale;
+    const avatarCy = originYTop - AVATAR_CY * scale;
     page.drawCircle({
-      x: originX + (NODE_WIDTH / 2) * scale,
-      y: originYTop - AVATAR_CY * scale,
+      x: avatarCx,
+      y: avatarCy,
       size: AVATAR_R * scale,
-      color: toColor(card.iconCircleColor),
-      borderColor: toColor(card.iconColor),
-      borderWidth: 2 * scale,
+      color: toColor(card.avatarFill),
     });
 
-    page.drawSvgPath(card.iconPath, {
-      x: originX + iconBoxX * scale,
-      y: originYTop - iconBoxY * scale,
-      scale: iconScale,
-      borderColor: toColor(card.iconColor),
-      borderWidth: 2 * iconScale,
+    const initialsFontSize = AVATAR_INITIALS_FONT_RATIO * AVATAR_R * scale;
+    const initialsWidth = cormorantBoldFont.widthOfTextAtSize(card.initials, initialsFontSize);
+    page.drawText(card.initials, {
+      x: avatarCx - initialsWidth / 2,
+      y: avatarCy - initialsFontSize * 0.36,
+      size: initialsFontSize,
+      font: cormorantBoldFont,
+      color: toColor(card.avatarText),
     });
 
     for (const line of card.lines) {
       if (!line.text) continue;
-      const font = line.bold ? boldFont : regularFont;
+      const font = fontForKind(line.kind);
       const fontSize = line.fontSize * scale;
       const textWidth = font.widthOfTextAtSize(line.text, fontSize);
-      page.drawText(line.text, {
-        x: originX + (NODE_WIDTH * scale) / 2 - textWidth / 2,
-        y: originYTop - line.y * scale,
-        size: fontSize,
-        font,
-        color: toColor(colors.text),
-      });
+      const lineY = originYTop - line.y * scale;
+
+      if (line.kind === "place") {
+        const iconTopY = lineY + line.fontSize * scale * PLACE_ICON_BASELINE_OFFSET_RATIO;
+        const combinedWidth = (PLACE_ICON_SIZE + PLACE_ICON_GAP) * scale + textWidth;
+        const startX = originX + (NODE_WIDTH * scale) / 2 - combinedWidth / 2;
+
+        page.drawSvgPath(MAP_PIN_OUTLINE_PATH, {
+          x: startX,
+          y: iconTopY,
+          scale: mapPinScale,
+          borderColor: toColor(colors.gold),
+          borderWidth: 1.6 * mapPinScale,
+        });
+        page.drawCircle({
+          x: startX + MAP_PIN_DOT.cx * mapPinScale,
+          y: iconTopY - MAP_PIN_DOT.cy * mapPinScale,
+          size: MAP_PIN_DOT.r * mapPinScale,
+          borderColor: toColor(colors.gold),
+          borderWidth: 1.6 * mapPinScale,
+        });
+        page.drawText(line.text, {
+          x: startX + (PLACE_ICON_SIZE + PLACE_ICON_GAP) * scale,
+          y: lineY,
+          size: fontSize,
+          font,
+          color: toColor(colorForKind(line.kind)),
+        });
+      } else {
+        page.drawText(line.text, {
+          x: originX + (NODE_WIDTH * scale) / 2 - textWidth / 2,
+          y: lineY,
+          size: fontSize,
+          font,
+          color: toColor(colorForKind(line.kind)),
+        });
+      }
     }
   }
 

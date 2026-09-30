@@ -62,13 +62,13 @@ function AddPersonForm({ onClose }: Props) {
 
   return (
     <form
-      className="absolute top-[calc(100%+6px)] left-0 z-10 flex w-[220px] flex-col gap-2 rounded-xl border border-parchment-border bg-parchment-card p-4 shadow-[0_4px_16px_rgba(0,0,0,0.12)]"
+      className="absolute top-[calc(100%+6px)] left-0 z-10 flex w-[220px] flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-[0_4px_16px_rgba(0,0,0,0.12)]"
       onSubmit={handleSubmit}
     >
       {FIELDS.map((field, index) => (
         <input
           key={field.key}
-          className="rounded-lg border border-parchment-border bg-parchment-panel px-2.5 py-2 font-serif text-xs text-parchment-text focus:outline-2 focus:outline-offset-1 focus:outline-parchment-border"
+          className="rounded-lg border border-border bg-surface px-2.5 py-2 text-xs text-ink focus:outline-2 focus:outline-offset-2 focus:outline-accent"
           type={field.type ?? "text"}
           placeholder={field.placeholder}
           value={form[field.key]}
@@ -85,10 +85,10 @@ function AddPersonForm({ onClose }: Props) {
             onClick={() =>
               updateField("sex", form.sex === option.value ? undefined : option.value)
             }
-            className={`flex-1 rounded-lg border px-2.5 py-2 font-serif text-xs transition-colors focus:outline-2 focus:outline-offset-1 focus:outline-parchment-border ${
+            className={`flex-1 rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors focus:outline-2 focus:outline-offset-2 focus:outline-accent ${
               form.sex === option.value
-                ? "border-parchment-text bg-parchment-text text-parchment-card"
-                : "border-parchment-border bg-parchment-panel text-parchment-text hover:bg-parchment-bg"
+                ? "border-primary bg-primary text-surface"
+                : "border-border bg-surface text-ink hover:bg-bg"
             }`}
           >
             {option.label}
@@ -97,7 +97,7 @@ function AddPersonForm({ onClose }: Props) {
       </div>
       <button
         type="submit"
-        className="cursor-pointer rounded-full border border-parchment-border bg-parchment-text px-4 py-2 font-serif text-xs text-parchment-card hover:bg-parchment-text-strong"
+        className="cursor-pointer rounded-full border border-primary bg-primary px-4 py-2 text-xs font-semibold text-surface hover:bg-primary-hover focus:outline-2 focus:outline-offset-2 focus:outline-accent"
       >
         Add
       </button>

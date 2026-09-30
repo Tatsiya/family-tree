@@ -23,6 +23,11 @@ export interface PositionedEdge {
   // descent line -- rendered heavier, so a couple reads as a pair rather
   // than as two more entries in the surrounding sibling row.
   kind: "connector" | "bridge";
+  // Center of the two-rings badge drawn on a couple's bridge (see
+  // ConnectorLine.tsx and pdfDrawPlan.ts) -- set only for kind "bridge".
+  // Computed here, where the bridge's endpoints are still plain numbers,
+  // so consumers don't each need to parse it back out of the path string.
+  ringBadgeCenter?: { x: number; y: number };
 }
 
 export interface TreeLayout {
@@ -238,7 +243,15 @@ function flipAndTranslate(raw: RawLayout): TreeLayout {
   });
   const bridgeEdges: PositionedEdge[] = raw.bridges.map((b) => {
     const y = flipY(b.y) + NODE_HEIGHT / 2;
-    return { id: b.id, secondary: b.secondary, kind: "bridge", path: `M${b.x1 + shiftX},${y}L${b.x2 + shiftX},${y}` };
+    const x1 = b.x1 + shiftX;
+    const x2 = b.x2 + shiftX;
+    return {
+      id: b.id,
+      secondary: b.secondary,
+      kind: "bridge",
+      path: `M${x1},${y}L${x2},${y}`,
+      ringBadgeCenter: { x: (x1 + x2) / 2, y },
+    };
   });
 
   return {

@@ -1,13 +1,26 @@
-// Shared border/avatar accent per sex, used by PersonNode and GenderIcon so
-// a card's border always matches its avatar frame.
-export function sexStrokeClass(sex: "M" | "F" | undefined): string {
-  if (sex === "M") return "stroke-parchment-border-male";
-  if (sex === "F") return "stroke-parchment-border-female";
-  return "stroke-parchment-border";
+// Shared avatar colors per sex -- an SVG pair (fill-*, for the tree card and
+// its PersonAvatar) and a DOM pair (bg-*/text-*, for PersonAvatarBadge) so a
+// person's initials circle always uses the same colors everywhere it appears.
+export function sexAvatarFillClass(sex: "M" | "F" | undefined): string {
+  if (sex === "M") return "fill-male-bg";
+  if (sex === "F") return "fill-female-bg";
+  return "fill-border";
 }
 
-export function sexTextClass(sex: "M" | "F" | undefined): string {
-  if (sex === "M") return "text-parchment-border-male";
-  if (sex === "F") return "text-parchment-border-female";
-  return "text-parchment-border";
+export function sexAvatarTextClass(sex: "M" | "F" | undefined): string {
+  if (sex === "M") return "fill-male-fg";
+  if (sex === "F") return "fill-female-fg";
+  return "fill-ink-2";
+}
+
+export function sexAvatarBgClass(sex: "M" | "F" | undefined): string {
+  if (sex === "M") return "bg-male-bg";
+  if (sex === "F") return "bg-female-bg";
+  return "bg-border";
+}
+
+export function sexAvatarFgClass(sex: "M" | "F" | undefined): string {
+  if (sex === "M") return "text-male-fg";
+  if (sex === "F") return "text-female-fg";
+  return "text-ink-2";
 }

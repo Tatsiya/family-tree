@@ -11,7 +11,7 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col">
       <Header svgRef={svgRef} />
-      <div className="flex min-h-0 flex-1 justify-between bg-parchment-bg">
+      <div className="flex min-h-0 flex-1 justify-between">
         <TreeCanvas tree={tree} svgRef={svgRef} />
         <PersonPanel />
       </div>
