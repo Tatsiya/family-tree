@@ -8,7 +8,7 @@ import { computeTreeLayout } from "../model/treeLayout";
 import { NODE_WIDTH } from "../model/treeLayoutConstants";
 import { AVATAR_INITIALS_FONT_RATIO, PLACE_ICON_BASELINE_OFFSET_RATIO, PLACE_ICON_GAP, PLACE_ICON_SIZE } from "../model/formatPersonNode";
 import type { PdfPageSizeId } from "../model/export/pageSizes";
-import { resolvePdfPageSize, mmToPoints } from "../model/export/pageSizes";
+import { resolvePdfPageSize, mmToPoints, PX_TO_MM } from "../model/export/pageSizes";
 import { clampToCanvasLimit } from "../model/export/raster";
 import { exportFileName } from "../model/export/exportFileName";
 import { buildPdfDrawPlan, AVATAR_CY, AVATAR_R, RING_BADGE_RADIUS } from "../model/export/pdfDrawPlan";
@@ -26,6 +26,17 @@ const GENERIC_ERROR_MESSAGE =
   "The tree couldn't be exported. Try again, or choose a different format.";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+
+// Margin added around the tree's own content on every exported file (SVG,
+// PNG, and PDF alike), in the tree's own layout units -- so a downloaded
+// file never crops the outermost cards flush against the edge. Expressed in
+// px (not per-format units) so every export path shares one proportion.
+const EXPORT_PADDING_PX = 48;
+
+// Selector for interactive-only chrome (the card's edit/add-relative
+// buttons) that belongs on screen but never in a downloaded file, which can
+// only ever show a static snapshot -- there's no hover state to reveal them.
+const EXPORT_HIDDEN_SELECTOR = "[data-export-hide]";
 
 // SVG-relevant CSS properties whose values come from Tailwind classes
 // (fill, stroke, font, ...) rather than SVG attributes. A standalone SVG
@@ -96,26 +107,35 @@ function readThemeColors(): PdfThemeColors {
 
 // Produces a standalone, styled SVG document string -- safe to save to
 // disk or rasterize -- from the live tree SVG element on screen. The
-// viewBox stays at the tree's native layout units, but width/height (the
-// SVG's declared output size) are set to renderWidth/renderHeight -- for a
-// PNG export, that's the target raster resolution, so the browser renders
-// vector text and lines crisply at full size instead of rasterizing small
-// and blurring it back up when the canvas draws it in larger.
+// viewBox stays at the tree's native layout units (padded by
+// EXPORT_PADDING_PX on every side), but width/height (the SVG's declared
+// output size) are set to renderWidth/renderHeight -- for a PNG export,
+// that's the target raster resolution, so the browser renders vector text
+// and lines crisply at full size instead of rasterizing small and blurring
+// it back up when the canvas draws it in larger.
 function serializeTreeSvg(svg: SVGSVGElement, renderWidth: number, renderHeight: number): string {
   const width = svg.viewBox.baseVal.width || svg.clientWidth;
   const height = svg.viewBox.baseVal.height || svg.clientHeight;
+  const paddedWidth = width + EXPORT_PADDING_PX * 2;
+  const paddedHeight = height + EXPORT_PADDING_PX * 2;
 
   const clone = svg.cloneNode(true) as SVGSVGElement;
   inlineComputedStyles(svg, clone);
+  clone.querySelectorAll(EXPORT_HIDDEN_SELECTOR).forEach((el) => el.remove());
   clone.removeAttribute("style");
   clone.setAttribute("xmlns", SVG_NAMESPACE);
   clone.setAttribute("width", String(renderWidth));
   clone.setAttribute("height", String(renderHeight));
-  clone.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  clone.setAttribute(
+    "viewBox",
+    `${-EXPORT_PADDING_PX} ${-EXPORT_PADDING_PX} ${paddedWidth} ${paddedHeight}`,
+  );
 
   const background = document.createElementNS(SVG_NAMESPACE, "rect");
-  background.setAttribute("width", String(width));
-  background.setAttribute("height", String(height));
+  background.setAttribute("x", String(-EXPORT_PADDING_PX));
+  background.setAttribute("y", String(-EXPORT_PADDING_PX));
+  background.setAttribute("width", String(paddedWidth));
+  background.setAttribute("height", String(paddedHeight));
   background.setAttribute("fill", pageBackgroundColor());
   clone.insertBefore(background, clone.firstChild);
 
@@ -212,7 +232,13 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
   const { widthMm, heightMm } = resolvePdfPageSize(pageSize, plan.width, plan.height);
   const pageWidthPt = mmToPoints(widthMm);
   const pageHeightPt = mmToPoints(heightMm);
-  const scale = pageWidthPt / plan.width;
+  // Same proportional margin as the SVG/PNG export, converted from the
+  // tree's own px units to points via the same px<->mm ratio the page size
+  // itself was resolved with. Carved out of the content's own scale rather
+  // than added on top of the page, so a fixed paper preset (A4, A3, ...)
+  // still comes out at exactly that size instead of running over it.
+  const paddingPt = mmToPoints(EXPORT_PADDING_PX * PX_TO_MM);
+  const scale = (pageWidthPt - paddingPt * 2) / plan.width;
 
   const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
   const toColor = (c: RgbColor) => rgb(c.r, c.g, c.b);
@@ -221,8 +247,8 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
 
   for (const connector of plan.connectors) {
     page.drawSvgPath(connector.path, {
-      x: 0,
-      y: pageHeightPt,
+      x: paddingPt,
+      y: pageHeightPt - paddingPt,
       scale,
       borderColor: toColor(connector.color),
       borderWidth: connector.strokeWidth * scale,
@@ -231,8 +257,8 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
     });
 
     if (connector.ringBadgeCenter) {
-      const cx = connector.ringBadgeCenter.x * scale;
-      const cy = pageHeightPt - connector.ringBadgeCenter.y * scale;
+      const cx = connector.ringBadgeCenter.x * scale + paddingPt;
+      const cy = pageHeightPt - paddingPt - connector.ringBadgeCenter.y * scale;
       page.drawCircle({
         x: cx,
         y: cy,
@@ -256,8 +282,8 @@ async function renderVectorPdf(tree: Tree, pageSize: PdfPageSizeId): Promise<Uin
   const mapPinScale = (PLACE_ICON_SIZE / MAP_PIN_VIEWBOX_SIZE) * scale;
 
   for (const card of plan.cards) {
-    const originX = card.x * scale;
-    const originYTop = pageHeightPt - card.y * scale;
+    const originX = card.x * scale + paddingPt;
+    const originYTop = pageHeightPt - paddingPt - card.y * scale;
 
     page.drawSvgPath(plan.cardPath, {
       x: originX,
@@ -358,8 +384,8 @@ export function useTreeExport(): UseTreeExportResult {
         const svg = context.svg;
         if (!svg) throw new Error(GENERIC_ERROR_MESSAGE);
 
-        const nativeWidth = svg.viewBox.baseVal.width || svg.clientWidth;
-        const nativeHeight = svg.viewBox.baseVal.height || svg.clientHeight;
+        const nativeWidth = (svg.viewBox.baseVal.width || svg.clientWidth) + EXPORT_PADDING_PX * 2;
+        const nativeHeight = (svg.viewBox.baseVal.height || svg.clientHeight) + EXPORT_PADDING_PX * 2;
 
         if (options.format === "svg") {
           const markup = serializeTreeSvg(svg, nativeWidth, nativeHeight);

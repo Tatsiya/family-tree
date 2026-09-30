@@ -1,4 +1,4 @@
-import { X, MapPin } from "lucide-react";
+import { X, MapPin, Pencil, UserPlus } from "lucide-react";
 import { useTreeStore } from "../store/treeStore";
 import { getRelatives } from "../model/relatives";
 import { formatShortName } from "../model/formatShortName";
@@ -14,6 +14,8 @@ function PersonPanel() {
   );
   const tree = useTreeStore((s) => s.tree);
   const togglePerson = useTreeStore((s) => s.togglePerson);
+  const openEditPerson = useTreeStore((s) => s.openEditPerson);
+  const openRelationPicker = useTreeStore((s) => s.openRelationPicker);
 
   if (!person) return null;
   const relatives = getRelatives(tree, person.id);
@@ -52,6 +54,25 @@ function PersonPanel() {
             )}
           </div>
         )}
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => openEditPerson(person.id)}
+          className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-border-strong bg-transparent px-4 text-sm font-semibold text-secondary-text transition-colors hover:bg-hover-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <Pencil size={16} />
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => openRelationPicker(person.id)}
+          className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-surface transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <UserPlus size={16} />
+          Relative
+        </button>
       </div>
 
       <PersonRelatives relatives={relatives} onSelectPerson={togglePerson} />

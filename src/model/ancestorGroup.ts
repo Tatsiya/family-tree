@@ -43,7 +43,7 @@ export function rowWidth(row: string[]): number {
 // blood family plus a foster/step family they later moved to. The blood
 // family is what should drive the ancestry chart, so it's preferred over
 // whichever family record happens to appear first in the source file.
-function familyOfChild(tree: Tree, personId: string): Family | undefined {
+export function familyOfChild(tree: Tree, personId: string): Family | undefined {
   const families = Object.values(tree.families ?? {}).filter((f) =>
     (f.children ?? []).some((c) => c.id === personId),
   );
